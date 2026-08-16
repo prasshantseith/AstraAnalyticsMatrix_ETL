@@ -1,1 +1,48 @@
+name: MF Ingestion Pipeline
 
+on:
+  workflow_dispatch:        # Allows manual trigger
+  schedule:
+    - cron: "0 6 * * *"     # Runs every day at 6 AM NZT
+
+jobs:
+  mf_ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Get Azure Access Token
+      run: |
+        TOKEN=$(curl -X POST \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "grant_type=client_credentials&client_id=${AZURE_CLIENT_ID}&client_secret=${AZURE_CLIENT_SECRET}&resource=https://vault.azure.net" \
+          https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/token | jq -r '.access_token')
+
+        echo "AZURE_TOKEN=$TOKEN" >> $GITHUB_ENV
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    - name: Export Key Vault Name
+      run: echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
+
+    - name: Run MF ingestion
+      run: python src/ingestion/mf_ingest.py
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: ingestion-log
+        path: logs/ingestion.log
