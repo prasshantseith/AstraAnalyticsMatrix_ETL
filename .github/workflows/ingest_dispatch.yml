@@ -1,0 +1,40 @@
+name: MFAPI Ingestion (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      triggerSource:
+        description: "Source that triggered this workflow"
+        required: false
+        default: "external"
+
+jobs:
+  run-ingestion:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run ingestion
+        env:
+          VAULT_URL: ${{ secrets.VAULT_URL }}
+        run: |
+          python src/ingestion/mf_ingest.py
+
+      - name: Log trigger source
+        run: echo "Triggered by: ${{ github.event.inputs.triggerSource }}"
