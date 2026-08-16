@@ -25,10 +25,13 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Export Azure SP credentials
+        run: |
+          echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
+
 
       - name: Run ingestion
         env:
