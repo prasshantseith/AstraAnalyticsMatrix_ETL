@@ -35,6 +35,3 @@ jobs:
           VAULT_URL: ${{ secrets.VAULT_URL }}
         run: |
           python src/ingestion/mf_ingest.py
-
-      - name: Log trigger source
-        run: echo "Triggered by: ${{ github.event.inputs.triggerSource }}"
