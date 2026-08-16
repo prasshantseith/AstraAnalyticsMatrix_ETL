@@ -37,6 +37,13 @@ jobs:
 
     - name: Export Key Vault Name
       run: echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
+    - name: Export Azure SP credentials
+      run: |
+        echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+        echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_ENV
+        echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+        echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
+    
 
     - name: Run MF ingestion
       run: python src/ingestion/mf_ingest.py
