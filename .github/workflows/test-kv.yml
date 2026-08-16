@@ -23,8 +23,8 @@ jobs:
         AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
-    - name: Fetch TEST_SECRET from Key Vault
+    - name: Fetch SUPABASE-POSTGRE-HOST from Key Vault
       run: |
-        SECRET=$(curl -H "Authorization: Bearer $AZURE_TOKEN" \
-          https://${{ secrets.KEYVAULT_NAME }}.vault.azure.net/secrets/TEST_SECRET?api-version=7.3 | jq -r '.value')
-        echo "TEST_SECRET_VALUE=$SECRET"
+        HOST=$(curl -H "Authorization: Bearer $AZURE_TOKEN" \
+          https://${{ secrets.KEYVAULT_NAME }}.vault.azure.net/secrets/SUPABASE-POSTGRE-HOST?api-version=7.3 | jq -r '.value')
+        echo "SUPABASE_POSTGRE_HOST=$HOST"
