@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 from azure.identity import ClientSecretCredential
 from azure.keyvault.secrets import SecretClient
 
@@ -34,6 +35,6 @@ def get_db_dsn(environment: str = None) -> str:
     db   = get_secret("SUPABASE-POSTGRE-DB", environment)
     user = get_secret("SUPABASE-POSTGRE-USER", environment)
     pwd  = get_secret("SUPABASE-POSTGRE-PASSWORD", environment)
-    port = get_secret("SUPABASE-POSTGRE-PORT", environment)  # add this secret if not present yet
+    port = os.environ.get("SUPABASE_POSTGRE_PORT", "6543")
 
-    return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
+    return f"postgresql://{quote(user, safe='')}:{quote(pwd, safe='')}@{host}:{port}/{db}"

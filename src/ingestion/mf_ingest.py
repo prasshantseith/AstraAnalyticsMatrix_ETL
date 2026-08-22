@@ -71,7 +71,7 @@ def get_job_config(cursor, job_name):
     cursor.execute(
         """
         SELECT source_url, target_schema, target_table, enabled
-        FROM "MF"."ETL_CONFIG"
+        FROM "ETL"."ETL_CONFIG"
         WHERE job_name = %s
         """,
         (job_name,)
@@ -79,7 +79,7 @@ def get_job_config(cursor, job_name):
     row = cursor.fetchone()
 
     if row is None:
-        raise Exception(f"No config found in MF.ETL_CONFIG for job '{job_name}'")
+        raise Exception(f"No config found in ETL.ETL_CONFIG for job '{job_name}'")
 
     return {
         "source_url": row[0],
@@ -92,7 +92,7 @@ def get_job_config(cursor, job_name):
 def set_job_status(cursor, job_name, status):
     cursor.execute(
         """
-        UPDATE "MF"."ETL_CONFIG"
+        UPDATE "ETL"."ETL_CONFIG"
         SET last_run_at = now(), last_run_status = %s, updated_at = now()
         WHERE job_name = %s
         """,
@@ -177,7 +177,7 @@ def main():
         config = get_job_config(cursor, JOB_NAME)
 
         if not config["enabled"]:
-            print(f"Job '{JOB_NAME}' is disabled in MF.ETL_CONFIG, skipping.")
+            print(f"Job '{JOB_NAME}' is disabled in ETL.ETL_CONFIG, skipping.")
             set_job_status(cursor, JOB_NAME, "skipped")
             conn.commit()
             return

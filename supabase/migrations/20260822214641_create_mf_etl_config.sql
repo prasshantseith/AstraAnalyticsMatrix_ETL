@@ -1,6 +1,6 @@
-create schema if not exists "MF";
+create schema if not exists "ETL";
 
-create table if not exists "MF"."ETL_CONFIG" (
+create table if not exists "ETL"."ETL_CONFIG" (
     job_name text primary key,
     source_url text not null,
     target_schema text not null,
@@ -13,7 +13,7 @@ create table if not exists "MF"."ETL_CONFIG" (
     updated_at timestamptz not null default now()
 );
 
-insert into "MF"."ETL_CONFIG"
+insert into "ETL"."ETL_CONFIG"
     (job_name, source_url, target_schema, target_table, enabled)
 values
     ('mf_nav_ingest', 'https://api.mfapi.in/mf/latest', 'MF', 'MF_NAV', true)
