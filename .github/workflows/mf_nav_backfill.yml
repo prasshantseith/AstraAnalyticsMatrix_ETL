@@ -1,0 +1,78 @@
+name: MF NAV Backfill (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      limit:
+        description: 'Only backfill the first N active schemes (optional, for testing)'
+        required: false
+        type: string
+      scheme_code:
+        description: 'Only backfill this single scheme code (optional, for testing)'
+        required: false
+        type: string
+
+jobs:
+  backfill-dev:
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MF NAV backfill (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_SCHEME_CODE: ${{ inputs.scheme_code }}
+        run: |
+          ARGS="--environment dev"
+          if [ -n "$BACKFILL_LIMIT" ]; then ARGS="$ARGS --limit $BACKFILL_LIMIT"; fi
+          if [ -n "$BACKFILL_SCHEME_CODE" ]; then ARGS="$ARGS --scheme-code $BACKFILL_SCHEME_CODE"; fi
+          python src/ingestion/mf_nav_backfill.py $ARGS
+
+  backfill-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MF NAV backfill (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_SCHEME_CODE: ${{ inputs.scheme_code }}
+        run: |
+          ARGS="--environment prod"
+          if [ -n "$BACKFILL_LIMIT" ]; then ARGS="$ARGS --limit $BACKFILL_LIMIT"; fi
+          if [ -n "$BACKFILL_SCHEME_CODE" ]; then ARGS="$ARGS --scheme-code $BACKFILL_SCHEME_CODE"; fi
+          python src/ingestion/mf_nav_backfill.py $ARGS
