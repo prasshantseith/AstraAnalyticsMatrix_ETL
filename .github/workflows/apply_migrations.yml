@@ -7,10 +7,42 @@ on:
       - main
     paths:
       - 'supabase/migrations/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Manual action to run'
+        required: true
+        type: choice
+        options:
+          - repair
+          - sync-roles
+      environment:
+        description: 'Environment to repair (repair action only)'
+        required: false
+        type: choice
+        options:
+          - dev
+          - prod
+      versions:
+        description: 'Space-separated migration versions to repair (repair action only, e.g. 20260822082501 20260822083109)'
+        required: false
+      status:
+        description: 'Status to mark those versions as (repair action only)'
+        required: false
+        type: choice
+        options:
+          - reverted
+          - applied
+        default: reverted
+      apply:
+        description: 'Create missing roles in dev (sync-roles action only). Leave unchecked for a dry-run report.'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   apply-dev:
-    if: github.ref_name == 'Development'
+    if: github.event_name == 'push' && github.ref_name == 'Development'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -43,7 +75,7 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL"
 
   apply-prod:
-    if: github.ref_name == 'main'
+    if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -75,3 +107,97 @@ jobs:
 
       - name: Push migrations to prod
         run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+  sync-roles:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'sync-roles'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync custom roles from prod to dev
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            python scripts/sync_roles.py --apply
+          else
+            python scripts/sync_roles.py
+          fi
+
+  repair-dev:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'repair' && inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve DB connection string
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          DB_URL=$(python scripts/print_db_url.py dev)
+          echo "::add-mask::$DB_URL"
+          echo "SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Repair migration history on dev
+        run: supabase migration repair --status ${{ inputs.status }} ${{ inputs.versions }} --db-url "$SUPABASE_DB_URL"
+
+  repair-prod:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'repair' && inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve DB connection string
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          DB_URL=$(python scripts/print_db_url.py prod)
+          echo "::add-mask::$DB_URL"
+          echo "SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Repair migration history on prod
+        run: supabase migration repair --status ${{ inputs.status }} ${{ inputs.versions }} --db-url "$SUPABASE_DB_URL"

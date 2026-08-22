@@ -4,7 +4,11 @@ from psycopg2 import sql
 from psycopg2.extras import execute_values
 from datetime import datetime
 import os
-import json
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from utils.etl_job import get_job_config, set_job_status, log_run_start, log_run_end
 
 JOB_NAME = "mf_nav_ingest"
 
@@ -65,43 +69,7 @@ def connect_to_postgres():
 
 
 # -----------------------------
-# 3. Load Job Config
-# -----------------------------
-def get_job_config(cursor, job_name):
-    cursor.execute(
-        """
-        SELECT source_url, target_schema, target_table, enabled
-        FROM "ETL"."ETL_CONFIG"
-        WHERE job_name = %s
-        """,
-        (job_name,)
-    )
-    row = cursor.fetchone()
-
-    if row is None:
-        raise Exception(f"No config found in ETL.ETL_CONFIG for job '{job_name}'")
-
-    return {
-        "source_url": row[0],
-        "target_schema": row[1],
-        "target_table": row[2],
-        "enabled": row[3],
-    }
-
-
-def set_job_status(cursor, job_name, status):
-    cursor.execute(
-        """
-        UPDATE "ETL"."ETL_CONFIG"
-        SET last_run_at = now(), last_run_status = %s, updated_at = now()
-        WHERE job_name = %s
-        """,
-        (status, job_name)
-    )
-
-
-# -----------------------------
-# 4. Fetch MFAPI Data
+# 3. Fetch MFAPI Data
 # -----------------------------
 def fetch_mf_latest(source_url):
     response = requests.get(source_url, timeout=30)
@@ -113,7 +81,7 @@ def fetch_mf_latest(source_url):
 
 
 # -----------------------------
-# 5. Transform MFAPI Rows
+# 4. Transform MFAPI Rows
 # -----------------------------
 def transform_rows(data):
     rows = []
@@ -151,7 +119,7 @@ def transform_rows(data):
 
 
 # -----------------------------
-# 6. Insert into Supabase PostgreSQL
+# 5. Insert into Supabase PostgreSQL
 # -----------------------------
 def insert_into_postgres(cursor, target_schema, target_table, rows):
     insert_sql = sql.SQL(
@@ -167,18 +135,24 @@ def insert_into_postgres(cursor, target_schema, target_table, rows):
 
 
 # -----------------------------
-# 7. Main
+# 6. Main
 # -----------------------------
 def main():
     conn = connect_to_postgres()
     cursor = conn.cursor()
+    log_id = None
 
     try:
         config = get_job_config(cursor, JOB_NAME)
 
+        start_time = datetime.utcnow()
+        log_id = log_run_start(cursor, JOB_NAME, start_time)
+        conn.commit()
+
         if not config["enabled"]:
             print(f"Job '{JOB_NAME}' is disabled in ETL.ETL_CONFIG, skipping.")
             set_job_status(cursor, JOB_NAME, "skipped")
+            log_run_end(cursor, log_id, "skipped")
             conn.commit()
             return
 
@@ -192,14 +166,25 @@ def main():
         print(f"Rows prepared for insert: {len(rows)}")
 
         insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
+        rows_updated = cursor.rowcount
+        watermark_value = max((row[2] for row in rows), default=None)
 
         set_job_status(cursor, JOB_NAME, "success")
+        log_run_end(
+            cursor,
+            log_id,
+            "success",
+            rows_updated=rows_updated,
+            watermark_value=str(watermark_value) if watermark_value else None,
+        )
         conn.commit()
 
         print("Insert completed.")
-    except Exception:
+    except Exception as exc:
         conn.rollback()
         set_job_status(cursor, JOB_NAME, "failed")
+        if log_id is not None:
+            log_run_end(cursor, log_id, "failed", error_message=str(exc))
         conn.commit()
         raise
     finally:
