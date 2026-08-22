@@ -87,14 +87,14 @@ def parse_amfi_rows(text):
 def upsert_mf_metadata(cursor, target_schema, target_table, rows):
     upsert_sql = sql.SQL(
         """
-        INSERT INTO {}.{}
+        INSERT INTO {}.{} AS mf
             ("SchemeCode", "SchemeName", "isinGrowth", "isinDivPayout", "isinDivReinvestment", latest_nav_date, "IsActive")
         VALUES %s
         ON CONFLICT ("SchemeCode") DO UPDATE SET
             "SchemeName" = EXCLUDED."SchemeName",
-            "isinGrowth" = COALESCE(EXCLUDED."isinGrowth", "isinGrowth"),
-            "isinDivPayout" = COALESCE(EXCLUDED."isinDivPayout", "isinDivPayout"),
-            "isinDivReinvestment" = COALESCE(EXCLUDED."isinDivReinvestment", "isinDivReinvestment"),
+            "isinGrowth" = COALESCE(EXCLUDED."isinGrowth", mf."isinGrowth"),
+            "isinDivPayout" = COALESCE(EXCLUDED."isinDivPayout", mf."isinDivPayout"),
+            "isinDivReinvestment" = COALESCE(EXCLUDED."isinDivReinvestment", mf."isinDivReinvestment"),
             latest_nav_date = EXCLUDED.latest_nav_date,
             "IsActive" = true;
         """
