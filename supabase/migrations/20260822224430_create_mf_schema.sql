@@ -35,9 +35,13 @@ create table if not exists "MF"."MF_NAV"
 create table if not exists "MF"."MF_NAV_default"
     partition of "MF"."MF_NAV" default;
 
--- Pre-create one partition per calendar month for the next 20 years so
--- daily ingestion never hits a missing partition. Extend this range with a
--- new migration before it runs out.
+-- Pre-create one partition per calendar month covering the past 35 years
+-- (for historical NAV data, so it lands in its own partition instead of the
+-- default catch-all) through the next 20 years (so daily ingestion never
+-- hits a missing partition). This must run before the legacy-data copy
+-- below -- once rows exist in the default partition, Postgres refuses to
+-- carve out a new partition that would need to reclaim them from it.
+-- Extend this range with a new migration before it runs out.
 do $$
 declare
     start_month date := date_trunc('month', now())::date;
@@ -46,7 +50,7 @@ declare
     partition_name text;
     i int;
 begin
-    for i in 0..239 loop
+    for i in -420..239 loop
         partition_start := (start_month + (i || ' months')::interval)::date;
         partition_end := (start_month + ((i + 1) || ' months')::interval)::date;
         partition_name := 'MF_NAV_' || to_char(partition_start, 'YYYY_MM');
