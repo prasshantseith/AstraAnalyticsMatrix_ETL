@@ -3,8 +3,14 @@ create schema if not exists "MF";
 -- If a plain (non-partitioned) "MF"."MF_NAV" already exists (prod, created
 -- manually before this repo tracked migrations), move it aside so its data
 -- can be copied into the new partitioned table below. It is kept around as
--- "MF_NAV_legacy" -- nothing is dropped automatically.
+-- "MF_NAV_legacy" -- nothing is dropped automatically. Renaming the table
+-- does NOT rename its constraints, so every constraint on it is renamed
+-- with a "legacy_" prefix too -- otherwise a Postgres-default-named one
+-- (e.g. its primary key "MF_NAV_pkey") collides with the identically-named
+-- constraint on the new partitioned table below.
 do $$
+declare
+    r record;
 begin
     if exists (
         select 1
@@ -13,6 +19,16 @@ begin
         where n.nspname = 'MF' and c.relname = 'MF_NAV' and c.relkind = 'r'
     ) then
         alter table "MF"."MF_NAV" rename to "MF_NAV_legacy";
+
+        for r in
+            select conname
+            from pg_constraint
+            where conrelid = '"MF"."MF_NAV_legacy"'::regclass
+        loop
+            if r.conname !~ '^legacy_' then
+                execute format('alter table "MF"."MF_NAV_legacy" rename constraint %I to %I', r.conname, 'legacy_' || r.conname);
+            end if;
+        end loop;
     end if;
 end $$;
 
