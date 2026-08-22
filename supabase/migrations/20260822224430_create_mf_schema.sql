@@ -1,17 +1,86 @@
 create schema if not exists "MF";
 
+-- If a plain (non-partitioned) "MF"."MF_NAV" already exists (prod, created
+-- manually before this repo tracked migrations), move it aside so its data
+-- can be copied into the new partitioned table below. It is kept around as
+-- "MF_NAV_legacy" -- nothing is dropped automatically.
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV' and c.relkind = 'r'
+    ) then
+        alter table "MF"."MF_NAV" rename to "MF_NAV_legacy";
+    end if;
+end $$;
+
 create table if not exists "MF"."MF_NAV"
 (
     "MFNavID" integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
     "SchemeCode" bigint,
     "SchemeName" character varying(1000) COLLATE pg_catalog."default",
-    "NavDate" date,
+    "NavDate" date NOT NULL,
     "NAV" numeric(18,4),
     "NAVDateKey" integer,
     "LoadDateTime" timestamp with time zone DEFAULT now(),
-    CONSTRAINT "MF_NAV_pkey" PRIMARY KEY ("MFNavID"),
+    CONSTRAINT "MF_NAV_pkey" PRIMARY KEY ("MFNavID", "NavDate"),
     CONSTRAINT ux_mf_nav_schemecode_navdate UNIQUE ("SchemeCode", "NavDate")
-);
+) PARTITION BY RANGE ("NavDate");
+
+-- Catches any row whose NavDate falls outside the explicit monthly
+-- partitions below (e.g. historical data copied from MF_NAV_legacy, or
+-- dates beyond the pre-provisioned 20-year window).
+create table if not exists "MF"."MF_NAV_default"
+    partition of "MF"."MF_NAV" default;
+
+-- Pre-create one partition per calendar month for the next 20 years so
+-- daily ingestion never hits a missing partition. Extend this range with a
+-- new migration before it runs out.
+do $$
+declare
+    start_month date := date_trunc('month', now())::date;
+    partition_start date;
+    partition_end date;
+    partition_name text;
+    i int;
+begin
+    for i in 0..239 loop
+        partition_start := (start_month + (i || ' months')::interval)::date;
+        partition_end := (start_month + ((i + 1) || ' months')::interval)::date;
+        partition_name := 'MF_NAV_' || to_char(partition_start, 'YYYY_MM');
+
+        execute format(
+            'create table if not exists "MF".%I partition of "MF"."MF_NAV" for values from (%L) to (%L);',
+            partition_name, partition_start, partition_end
+        );
+    end loop;
+end $$;
+
+-- Copy any data from the legacy (pre-partitioning) table into the new
+-- partitioned table, preserving MFNavID, then realign the identity
+-- sequence so future inserts continue after the highest copied ID.
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy' and c.relkind = 'r'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy"
+        where "NavDate" is not null;
+
+        perform setval(
+            pg_get_serial_sequence('"MF"."MF_NAV"', 'MFNavID'),
+            greatest((select coalesce(max("MFNavID"), 0) from "MF"."MF_NAV"), 1)
+        );
+    end if;
+end $$;
 
 -- Table: MF.MF
 
