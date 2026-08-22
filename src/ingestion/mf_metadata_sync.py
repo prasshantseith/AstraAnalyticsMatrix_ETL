@@ -6,12 +6,12 @@ from datetime import datetime
 import psycopg2
 import requests
 from psycopg2 import sql
-from psycopg2.extras import execute_values
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils.keyvault import get_db_dsn
 from utils.etl_job import get_job_config, set_job_status, log_run_start, log_run_end
+from utils.db import execute_values_counted
 
 JOB_NAME = "mf_metadata_sync"
 STALE_AFTER_DAYS = 5
@@ -101,8 +101,7 @@ def upsert_mf_metadata(cursor, target_schema, target_table, rows):
     ).format(sql.Identifier(target_schema), sql.Identifier(target_table))
 
     values = [row + (True,) for row in rows]
-    execute_values(cursor, upsert_sql, values)
-    return cursor.rowcount
+    return execute_values_counted(cursor, upsert_sql, values)
 
 
 def deactivate_stale_schemes(cursor, target_schema, target_table):
