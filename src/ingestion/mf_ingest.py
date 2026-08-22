@@ -1,7 +1,6 @@
 import requests
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import execute_values
 from datetime import datetime
 import os
 import sys
@@ -9,6 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils.etl_job import get_job_config, set_job_status, log_run_start, log_run_end
+from utils.db import execute_values_counted
 
 JOB_NAME = "mf_nav_ingest"
 
@@ -131,7 +131,7 @@ def insert_into_postgres(cursor, target_schema, target_table, rows):
         """
     ).format(sql.Identifier(target_schema), sql.Identifier(target_table))
 
-    execute_values(cursor, insert_sql, rows)
+    return execute_values_counted(cursor, insert_sql, rows)
 
 
 # -----------------------------
@@ -165,8 +165,7 @@ def main():
 
         print(f"Rows prepared for insert: {len(rows)}")
 
-        insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
-        rows_updated = cursor.rowcount
+        rows_updated = insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
         watermark_value = max((row[2] for row in rows), default=None)
 
         set_job_status(cursor, JOB_NAME, "success")
