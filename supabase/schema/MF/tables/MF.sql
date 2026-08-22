@@ -5,6 +5,7 @@ create table "MF"."MF"
     "SchemeName" character varying(1000),
     "LoadDateTime" timestamp with time zone DEFAULT now(),
     "isinGrowth" character varying,
+    "isinDivPayout" character varying,
     "isinDivReinvestment" character varying,
     external_code character varying(20),
     short_name character varying(150),
@@ -44,6 +45,7 @@ create table "MF"."MF"
     tax_long_term_after_days integer,
     detail_modifieddate timestamp with time zone,
     "IsActive" boolean,
+    latest_nav_date date,
     CONSTRAINT "MF_pkey" PRIMARY KEY ("MFID"),
     CONSTRAINT ux_mf_schemecode UNIQUE ("SchemeCode")
 );
