@@ -1,9 +1,12 @@
 import requests
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extras import execute_values
 from datetime import datetime
 import os
 import json
+
+JOB_NAME = "mf_nav_ingest"
 
 # -----------------------------
 # 1. Fetch Azure Key Vault Secret
@@ -42,11 +45,66 @@ def get_kv_secret(secret_name):
 
 
 # -----------------------------
-# 2. Fetch MFAPI Data
+# 2. Connect to Supabase PostgreSQL
 # -----------------------------
-def fetch_mf_latest():
-    url = "https://api.mfapi.in/mf/latest"
-    response = requests.get(url, timeout=30)
+def connect_to_postgres():
+    host = get_kv_secret("SUPABASE-POSTGRE-HOST")
+    database = get_kv_secret("SUPABASE-POSTGRE-DB")
+    user = get_kv_secret("SUPABASE-POSTGRE-USER")
+    password = get_kv_secret("SUPABASE-POSTGRE-PASSWORD")
+    port = os.getenv("SUPABASE_POSTGRE_PORT", "6543")
+
+    return psycopg2.connect(
+        host=host,
+        port=port,
+        database=database,
+        user=user,
+        password=password,
+        sslmode="require"
+    )
+
+
+# -----------------------------
+# 3. Load Job Config
+# -----------------------------
+def get_job_config(cursor, job_name):
+    cursor.execute(
+        """
+        SELECT source_url, target_schema, target_table, enabled
+        FROM "MF"."ETL_CONFIG"
+        WHERE job_name = %s
+        """,
+        (job_name,)
+    )
+    row = cursor.fetchone()
+
+    if row is None:
+        raise Exception(f"No config found in MF.ETL_CONFIG for job '{job_name}'")
+
+    return {
+        "source_url": row[0],
+        "target_schema": row[1],
+        "target_table": row[2],
+        "enabled": row[3],
+    }
+
+
+def set_job_status(cursor, job_name, status):
+    cursor.execute(
+        """
+        UPDATE "MF"."ETL_CONFIG"
+        SET last_run_at = now(), last_run_status = %s, updated_at = now()
+        WHERE job_name = %s
+        """,
+        (status, job_name)
+    )
+
+
+# -----------------------------
+# 4. Fetch MFAPI Data
+# -----------------------------
+def fetch_mf_latest(source_url):
+    response = requests.get(source_url, timeout=30)
 
     if response.status_code != 200:
         raise Exception(f"MFAPI failed: {response.status_code}")
@@ -55,7 +113,7 @@ def fetch_mf_latest():
 
 
 # -----------------------------
-# 3. Transform MFAPI Rows
+# 5. Transform MFAPI Rows
 # -----------------------------
 def transform_rows(data):
     rows = []
@@ -93,57 +151,60 @@ def transform_rows(data):
 
 
 # -----------------------------
-# 4. Insert into Supabase PostgreSQL
+# 6. Insert into Supabase PostgreSQL
 # -----------------------------
-def insert_into_postgres(rows):
-
-    host = get_kv_secret("SUPABASE-POSTGRE-HOST")
-    database = get_kv_secret("SUPABASE-POSTGRE-DB")
-    user = get_kv_secret("SUPABASE-POSTGRE-USER")
-    password = get_kv_secret("SUPABASE-POSTGRE-PASSWORD")
-    port = os.getenv("SUPABASE_POSTGRE_PORT", "6543")
-
-    conn = psycopg2.connect(
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password,
-        sslmode="require"
-    )
-
-    cursor = conn.cursor()
-
-    sql = """
-        INSERT INTO "MF"."MF_NAV"
+def insert_into_postgres(cursor, target_schema, target_table, rows):
+    insert_sql = sql.SQL(
+        """
+        INSERT INTO {}.{}
         ("SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey")
         VALUES %s
         ON CONFLICT ("SchemeCode", "NavDate") DO NOTHING;
-    """
+        """
+    ).format(sql.Identifier(target_schema), sql.Identifier(target_table))
 
-    execute_values(cursor, sql, rows)
-
-    conn.commit()
-    cursor.close()
-    conn.close()
+    execute_values(cursor, insert_sql, rows)
 
 
 # -----------------------------
-# 5. Main
+# 7. Main
 # -----------------------------
 def main():
-    print("Fetching MFAPI latest NAV data...")
-    data = fetch_mf_latest()
+    conn = connect_to_postgres()
+    cursor = conn.cursor()
 
-    print(f"Records received: {len(data)}")
+    try:
+        config = get_job_config(cursor, JOB_NAME)
 
-    rows = transform_rows(data)
+        if not config["enabled"]:
+            print(f"Job '{JOB_NAME}' is disabled in MF.ETL_CONFIG, skipping.")
+            set_job_status(cursor, JOB_NAME, "skipped")
+            conn.commit()
+            return
 
-    print(f"Rows prepared for insert: {len(rows)}")
+        print("Fetching MFAPI latest NAV data...")
+        data = fetch_mf_latest(config["source_url"])
 
-    insert_into_postgres(rows)
+        print(f"Records received: {len(data)}")
 
-    print("Insert completed.")
+        rows = transform_rows(data)
+
+        print(f"Rows prepared for insert: {len(rows)}")
+
+        insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
+
+        set_job_status(cursor, JOB_NAME, "success")
+        conn.commit()
+
+        print("Insert completed.")
+    except Exception:
+        conn.rollback()
+        set_job_status(cursor, JOB_NAME, "failed")
+        conn.commit()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
 
 
 if __name__ == "__main__":
