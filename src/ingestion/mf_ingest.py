@@ -100,6 +100,33 @@ def set_job_status(cursor, job_name, status):
     )
 
 
+def log_run_start(cursor, job_name, start_time):
+    cursor.execute(
+        """
+        INSERT INTO "ETL"."ETL_LOG" (job_name, start_time, status)
+        VALUES (%s, %s, 'running')
+        RETURNING log_id
+        """,
+        (job_name, start_time)
+    )
+    return cursor.fetchone()[0]
+
+
+def log_run_end(cursor, log_id, status, rows_updated=None, watermark_value=None, error_message=None):
+    cursor.execute(
+        """
+        UPDATE "ETL"."ETL_LOG"
+        SET end_time = now(),
+            status = %s,
+            rows_updated = %s,
+            watermark_value = %s,
+            error_message = %s
+        WHERE log_id = %s
+        """,
+        (status, rows_updated, watermark_value, error_message, log_id)
+    )
+
+
 # -----------------------------
 # 4. Fetch MFAPI Data
 # -----------------------------
@@ -172,13 +199,19 @@ def insert_into_postgres(cursor, target_schema, target_table, rows):
 def main():
     conn = connect_to_postgres()
     cursor = conn.cursor()
+    log_id = None
 
     try:
         config = get_job_config(cursor, JOB_NAME)
 
+        start_time = datetime.utcnow()
+        log_id = log_run_start(cursor, JOB_NAME, start_time)
+        conn.commit()
+
         if not config["enabled"]:
             print(f"Job '{JOB_NAME}' is disabled in ETL.ETL_CONFIG, skipping.")
             set_job_status(cursor, JOB_NAME, "skipped")
+            log_run_end(cursor, log_id, "skipped")
             conn.commit()
             return
 
@@ -192,14 +225,25 @@ def main():
         print(f"Rows prepared for insert: {len(rows)}")
 
         insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
+        rows_updated = cursor.rowcount
+        watermark_value = max((row[2] for row in rows), default=None)
 
         set_job_status(cursor, JOB_NAME, "success")
+        log_run_end(
+            cursor,
+            log_id,
+            "success",
+            rows_updated=rows_updated,
+            watermark_value=str(watermark_value) if watermark_value else None,
+        )
         conn.commit()
 
         print("Insert completed.")
-    except Exception:
+    except Exception as exc:
         conn.rollback()
         set_job_status(cursor, JOB_NAME, "failed")
+        if log_id is not None:
+            log_run_end(cursor, log_id, "failed", error_message=str(exc))
         conn.commit()
         raise
     finally:
