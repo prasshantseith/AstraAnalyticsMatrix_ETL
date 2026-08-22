@@ -18,3 +18,10 @@ insert into "ETL"."ETL_CONFIG"
 values
     ('mf_nav_ingest', 'https://api.mfapi.in/mf/latest', 'MF', 'MF_NAV', true)
 on conflict (job_name) do nothing;
+
+
+insert into "ETL"."ETL_CONFIG"
+    (job_name, source_url, target_schema, target_table, enabled)
+values
+    ('mf_nav_ingest1', 'https://api.mfapi.in/mf/latest', 'MF', 'MF_NAV', true)
+on conflict (job_name) do nothing;
