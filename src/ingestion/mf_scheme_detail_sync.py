@@ -34,7 +34,7 @@ def fetch_active_funds(cursor):
         SELECT "MFID", "isinGrowth", "isinDivPayout", "isinDivReinvestment"
         FROM "MF"."MF"
         WHERE "IsActive" = true
-        ORDER BY "MFID"
+        ORDER BY detail_modifieddate ASC NULLS FIRST, "MFID"
         """
     )
     return cursor.fetchall()
