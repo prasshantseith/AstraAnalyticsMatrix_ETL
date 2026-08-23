@@ -1,0 +1,78 @@
+name: MF Scheme Detail Sync (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      limit:
+        description: 'Only sync the first N active funds (optional, for testing)'
+        required: false
+        type: string
+      mfid:
+        description: 'Only sync this single MFID (optional, for testing)'
+        required: false
+        type: string
+
+jobs:
+  sync-dev:
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MF scheme detail sync (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SYNC_LIMIT: ${{ inputs.limit }}
+          SYNC_MFID: ${{ inputs.mfid }}
+        run: |
+          ARGS="--environment dev"
+          if [ -n "$SYNC_LIMIT" ]; then ARGS="$ARGS --limit $SYNC_LIMIT"; fi
+          if [ -n "$SYNC_MFID" ]; then ARGS="$ARGS --mfid $SYNC_MFID"; fi
+          python src/ingestion/mf_scheme_detail_sync.py $ARGS
+
+  sync-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MF scheme detail sync (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SYNC_LIMIT: ${{ inputs.limit }}
+          SYNC_MFID: ${{ inputs.mfid }}
+        run: |
+          ARGS="--environment prod"
+          if [ -n "$SYNC_LIMIT" ]; then ARGS="$ARGS --limit $SYNC_LIMIT"; fi
+          if [ -n "$SYNC_MFID" ]; then ARGS="$ARGS --mfid $SYNC_MFID"; fi
+          python src/ingestion/mf_scheme_detail_sync.py $ARGS
