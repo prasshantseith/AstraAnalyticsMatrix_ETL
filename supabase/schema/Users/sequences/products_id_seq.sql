@@ -6,7 +6,4 @@ CREATE SEQUENCE "Users".products_id_seq
     CACHE 1;
 
 ALTER SEQUENCE "Users".products_id_seq
-    OWNED BY "Users".products.id;
-
-ALTER SEQUENCE "Users".products_id_seq
     OWNER TO postgres;
