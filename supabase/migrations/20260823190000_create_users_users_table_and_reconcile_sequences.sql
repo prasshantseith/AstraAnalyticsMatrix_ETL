@@ -144,17 +144,14 @@ GRANT USAGE, SELECT ON SEQUENCE "Users"."userActivity_id_seq" TO app_user;
 
 GRANT ALL ON SEQUENCE "Users"."userActivity_id_seq" TO postgres;
 
--- Users.products is a pre-existing table not managed by this repo (like
--- Users.users); this sequence reconciliation assumes it already exists.
+-- Users.products doesn't exist in this repo yet, so this sequence is
+-- created standalone (no OWNED BY) until that table is added.
 CREATE SEQUENCE IF NOT EXISTS "Users".products_id_seq
     INCREMENT 1
     START 1
     MINVALUE 1
     MAXVALUE 2147483647
     CACHE 1;
-
-ALTER SEQUENCE "Users".products_id_seq
-    OWNED BY "Users".products.id;
 
 ALTER SEQUENCE "Users".products_id_seq
     OWNER TO postgres;
