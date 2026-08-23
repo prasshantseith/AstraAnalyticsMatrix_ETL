@@ -220,10 +220,21 @@ def update_mf_details(cursor, target_schema, target_table, mfid, detail):
 # -----------------------------
 # 6. Upsert peer comparison rows
 # -----------------------------
-def upsert_peer_performance(cursor, target_schema, mfid, comparison):
+def fetch_external_code_map(cursor):
+    cursor.execute(
+        """
+        SELECT external_code, "MFID"
+        FROM "MF"."MF"
+        WHERE external_code IS NOT NULL
+        """
+    )
+    return dict(cursor.fetchall())
+
+
+def upsert_peer_performance(cursor, target_schema, mfid, comparison, external_code_map):
     now = datetime.utcnow()
     rows = [
-        (mfid, peer["code"], sort_order, safe_float(peer.get("info_ratio")), now)
+        (mfid, external_code_map.get(peer["code"]), peer["code"], sort_order, safe_float(peer.get("info_ratio")), now)
         for sort_order, peer in enumerate(comparison, start=1)
         if peer.get("code")
     ]
@@ -233,9 +244,10 @@ def upsert_peer_performance(cursor, target_schema, mfid, comparison):
 
     upsert_sql = sql.SQL(
         """
-        INSERT INTO {}.{} (sourcemfid, peer_code, sort_order, info_ratio, rowinsertdatetime)
+        INSERT INTO {}.{} (source_mfid, peer_mfid, peer_code, sort_order, info_ratio, rowinsertdatetime)
         VALUES %s
-        ON CONFLICT (sourcemfid, peer_code) DO UPDATE SET
+        ON CONFLICT (source_mfid, peer_code) DO UPDATE SET
+            peer_mfid = EXCLUDED.peer_mfid,
             sort_order = EXCLUDED.sort_order,
             info_ratio = EXCLUDED.info_ratio,
             rowinsertdatetime = EXCLUDED.rowinsertdatetime;
@@ -302,6 +314,8 @@ def main():
 
         print(f"Active funds to sync: {len(funds)}")
 
+        external_code_map = fetch_external_code_map(cursor)
+
         total_updated = 0
         total_peer_rows = 0
         skipped_funds = []
@@ -319,7 +333,9 @@ def main():
                     print(f"[{i}/{len(funds)}] MFID {mfid}: no valid ISIN found, skipped")
                 else:
                     update_mf_details(cursor, config["target_schema"], config["target_table"], mfid, detail)
-                    peer_rows = upsert_peer_performance(cursor, config["target_schema"], mfid, detail.get("comparison") or [])
+                    peer_rows = upsert_peer_performance(
+                        cursor, config["target_schema"], mfid, detail.get("comparison") or [], external_code_map
+                    )
                     conn.commit()
 
                     total_updated += 1

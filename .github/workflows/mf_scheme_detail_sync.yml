@@ -1,6 +1,9 @@
 name: MF Scheme Detail Sync (API Trigger)
 
 on:
+  schedule:
+    # Weekly full sync against prod, all active funds. Cron is UTC.
+    - cron: '0 0 * * 1'
   workflow_dispatch:
     inputs:
       environment:
@@ -22,7 +25,7 @@ on:
 
 jobs:
   sync-dev:
-    if: inputs.environment == 'dev'
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -50,7 +53,7 @@ jobs:
           python src/ingestion/mf_scheme_detail_sync.py $ARGS
 
   sync-prod:
-    if: inputs.environment == 'prod'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
