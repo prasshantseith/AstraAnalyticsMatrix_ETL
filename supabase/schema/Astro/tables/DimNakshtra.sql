@@ -1,0 +1,26 @@
+create table "Astro"."DimNakshtra"
+(
+    "NakshatraKey" smallint NOT NULL,
+    "NakshatraNumber" smallint NOT NULL,
+    "NakshatraName" text COLLATE pg_catalog."default" NOT NULL,
+    "NakshatraLord" text COLLATE pg_catalog."default",
+    "NakshatraDevta" text COLLATE pg_catalog."default",
+    "NakshatraElement" text COLLATE pg_catalog."default",
+    "NakshatraType" text COLLATE pg_catalog."default",
+    "Direction" text COLLATE pg_catalog."default",
+    "GoodFor" text COLLATE pg_catalog."default",
+    "Description" text COLLATE pg_catalog."default",
+    "DescriptionNew" text COLLATE pg_catalog."default",
+    swabhava text COLLATE pg_catalog."default",
+    akrti text COLLATE pg_catalog."default",
+    mukha_position text COLLATE pg_catalog."default",
+    eyesight text COLLATE pg_catalog."default",
+    star_count smallint,
+    has_visha_ghati boolean,
+    is_auspicious boolean NOT NULL,
+    auspicious_text text COLLATE pg_catalog."default",
+    highlight_color text COLLATE pg_catalog."default",
+    description1 text COLLATE pg_catalog."default",
+    "NakshatraScore" smallint NOT NULL,
+    CONSTRAINT "DimNakshtra_pkey" PRIMARY KEY ("NakshatraKey")
+);
