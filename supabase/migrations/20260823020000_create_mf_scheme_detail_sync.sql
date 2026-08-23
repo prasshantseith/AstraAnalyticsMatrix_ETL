@@ -1,16 +1,22 @@
-create table "MF"."MFSchemeComparisonPeer"
+create table if not exists "MF"."MFSchemeComparisonPeer"
 (
-    id bigint generated always as identity primary key,
-    sourcemfid integer not null references "MF"."MF" ("MFID"),
-    peer_code character varying(50) not null,
-    sort_order integer,
-    info_ratio numeric(10,4),
-    rowinsertdatetime timestamp with time zone not null default now(),
-    constraint ux_mf_scheme_comparison_peer unique (sourcemfid, peer_code)
+    peerid bigint generated always as identity not null,
+    source_mfid integer not null,
+    peer_mfid integer null,
+    peer_code character varying(20) not null,
+    sort_order smallint not null,
+    info_ratio numeric(8, 4) null,
+    rowinsertdatetime timestamp with time zone not null default (now() AT TIME ZONE 'utc'::text),
+    constraint "MFSchemeComparisonPeer_pkey" primary key (peerid),
+    constraint "MFSchemeComparisonPeer_peer_mfid_fkey" foreign key (peer_mfid) references "MF"."MF" ("MFID"),
+    constraint "MFSchemeComparisonPeer_source_mfid_fkey" foreign key (source_mfid) references "MF"."MF" ("MFID") on delete cascade
 );
 
-create index ix_mf_scheme_comparison_peer_sourcemfid
-    on "MF"."MFSchemeComparisonPeer" (sourcemfid);
+create index if not exists ix_mfscp_peer_mfid
+    on "MF"."MFSchemeComparisonPeer" using btree (peer_mfid);
+
+create index if not exists ix_mfscp_source_mfid
+    on "MF"."MFSchemeComparisonPeer" using btree (source_mfid);
 
 insert into "ETL"."ETL_CONFIG"
     (job_name, source_url, target_schema, target_table, enabled)
