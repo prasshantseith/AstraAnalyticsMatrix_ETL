@@ -128,6 +128,11 @@ def main():
         help="Only backfill this single scheme code (for testing), skips the MF.MF lookup",
     )
     parser.add_argument(
+        "--scheme-codes",
+        default=None,
+        help="Comma-separated scheme codes to backfill (e.g. for retrying failures), skips the MF.MF lookup",
+    )
+    parser.add_argument(
         "--sleep-seconds",
         type=float,
         default=0.2,
@@ -153,7 +158,9 @@ def main():
             conn.commit()
             return
 
-        if args.scheme_code is not None:
+        if args.scheme_codes is not None:
+            scheme_codes = [int(code.strip()) for code in args.scheme_codes.split(",") if code.strip()]
+        elif args.scheme_code is not None:
             scheme_codes = [args.scheme_code]
         else:
             scheme_codes = fetch_active_scheme_codes(cursor)
