@@ -1,0 +1,78 @@
+name: Populate Report.dimDate (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      start_year:
+        description: 'Start year (optional, default 1995)'
+        required: false
+        type: string
+      end_year:
+        description: 'End year (optional, default 2040)'
+        required: false
+        type: string
+
+jobs:
+  populate-dev:
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Populate dimDate (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_YEAR: ${{ inputs.start_year }}
+          END_YEAR: ${{ inputs.end_year }}
+        run: |
+          ARGS="--environment dev"
+          if [ -n "$START_YEAR" ]; then ARGS="$ARGS --start-year $START_YEAR"; fi
+          if [ -n "$END_YEAR" ]; then ARGS="$ARGS --end-year $END_YEAR"; fi
+          python scripts/populate_dim_date.py $ARGS
+
+  populate-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Populate dimDate (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_YEAR: ${{ inputs.start_year }}
+          END_YEAR: ${{ inputs.end_year }}
+        run: |
+          ARGS="--environment prod"
+          if [ -n "$START_YEAR" ]; then ARGS="$ARGS --start-year $START_YEAR"; fi
+          if [ -n "$END_YEAR" ]; then ARGS="$ARGS --end-year $END_YEAR"; fi
+          python scripts/populate_dim_date.py $ARGS
