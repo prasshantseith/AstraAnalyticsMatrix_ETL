@@ -1,0 +1,86 @@
+name: BSE Bhavcopy Ingest (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      start_date:
+        description: 'Start date YYYY-MM-DD (optional, defaults to day after last loaded trade date)'
+        required: false
+        type: string
+      end_date:
+        description: 'End date YYYY-MM-DD (optional, defaults to today)'
+        required: false
+        type: string
+      limit_days:
+        description: 'Only process the first N business days in range (optional, for testing)'
+        required: false
+        type: string
+
+jobs:
+  ingest-dev:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run BSE bhavcopy ingest (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          LIMIT_DAYS: ${{ inputs.limit_days }}
+        run: |
+          ARGS="--environment dev"
+          if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
+          if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
+          if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
+          python src/ingestion/bse_bhavcopy_ingest.py $ARGS
+
+  ingest-prod:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run BSE bhavcopy ingest (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          LIMIT_DAYS: ${{ inputs.limit_days }}
+        run: |
+          ARGS="--environment prod"
+          if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
+          if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
+          if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
+          python src/ingestion/bse_bhavcopy_ingest.py $ARGS
