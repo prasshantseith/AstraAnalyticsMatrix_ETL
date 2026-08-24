@@ -320,9 +320,25 @@ def main():
                         last_loaded_date = d
                         print(f"[{i}/{len(days)}] {d}: {rows_upserted} rows upserted")
             except Exception as exc:
-                conn.rollback()
                 failed_days.append(d)
                 print(f"[{i}/{len(days)}] {d} FAILED: {exc}")
+                # A rollback alone doesn't recover a connection stuck in a bad
+                # state (observed: Supabase's transaction pooler silently
+                # failed a long-running session over to a read-only replica
+                # partway through a multi-hour backfill, and every remaining
+                # day failed the same way for the rest of the run). Reconnect
+                # so one bad connection can't poison everything after it.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    cursor.close()
+                    conn.close()
+                except Exception:
+                    pass
+                conn = connect_to_postgres(args.environment)
+                cursor = conn.cursor()
 
             if args.sleep_seconds:
                 time.sleep(args.sleep_seconds)
