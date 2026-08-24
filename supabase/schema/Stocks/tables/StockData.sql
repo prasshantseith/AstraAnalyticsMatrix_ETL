@@ -22,9 +22,16 @@ create table "Stocks"."StockData"
     "ClosePrice" numeric(18,4),
     "LastTradedPrice" numeric(18,4),
     "PreviousClosePrice" numeric(18,4),
-    CONSTRAINT "StockData_pkey" PRIMARY KEY ("Id"),
+    CONSTRAINT "StockData_pkey" PRIMARY KEY ("Id", "TradeDate"),
     CONSTRAINT "UQ_StockData_Exchange_TradeDate_Instrument" UNIQUE ("StockExchangeCode", "TradeDate", "InstrumentId")
-);
+) PARTITION BY RANGE ("TradeDate");
+
+-- Partitioned yearly: "StockData_YYYY" for each year, pre-created 2016
+-- through 5 years ahead by the migration, plus "StockData_default" for
+-- anything outside that range. Individual partitions aren't listed here --
+-- see 20260824090000_partition_stocks_stockdata_by_year.sql for the
+-- provisioning loop, and add a new migration to extend the range before
+-- it runs out.
 
 CREATE INDEX "IX_StockData_ExchangeCode"
     ON "Stocks"."StockData" USING btree ("StockExchangeCode" COLLATE pg_catalog."default" ASC NULLS LAST);
