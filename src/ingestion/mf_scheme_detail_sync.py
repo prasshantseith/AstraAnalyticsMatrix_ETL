@@ -322,6 +322,7 @@ def main():
         failed_funds = []
 
         for i, (mfid, isin_growth, isin_div_payout, isin_div_reinvestment) in enumerate(funds, start=1):
+            detail = None
             try:
                 detail = resolve_scheme_detail(
                     config["source_url"],
@@ -345,6 +346,11 @@ def main():
                 conn.rollback()
                 failed_funds.append(mfid)
                 print(f"[{i}/{len(funds)}] MFID {mfid} FAILED: {exc}")
+                if detail is not None:
+                    try:
+                        print(f"[{i}/{len(funds)}] MFID {mfid} FAILED payload: {transform_detail(detail)}")
+                    except Exception as transform_exc:
+                        print(f"[{i}/{len(funds)}] MFID {mfid} FAILED payload unavailable: {transform_exc}")
 
             if args.sleep_seconds:
                 time.sleep(args.sleep_seconds)
