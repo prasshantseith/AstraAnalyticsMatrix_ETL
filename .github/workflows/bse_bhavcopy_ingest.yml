@@ -1,10 +1,6 @@
-name: NSE Bhavcopy Ingest (API Trigger)
+name: BSE Bhavcopy Ingest (API Trigger)
 
 on:
-  schedule:
-    # Incremental run against prod, Mon-Sat at 20:00 UTC. Cron is UTC;
-    # day-of-week 1-6 = Mon-Sat (0/7 = Sun, excluded - no NSE trading Sunday).
-    - cron: '0 20 * * 1-6'
   workflow_dispatch:
     inputs:
       environment:
@@ -44,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run NSE bhavcopy ingest (dev)
+      - name: Run BSE bhavcopy ingest (dev)
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -57,10 +53,10 @@ jobs:
           if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
           if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
           if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
-          python src/ingestion/nse_bhavcopy_ingest.py $ARGS
+          python src/ingestion/bse_bhavcopy_ingest.py $ARGS
 
   ingest-prod:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -74,7 +70,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run NSE bhavcopy ingest (prod)
+      - name: Run BSE bhavcopy ingest (prod)
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -87,4 +83,4 @@ jobs:
           if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
           if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
           if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
-          python src/ingestion/nse_bhavcopy_ingest.py $ARGS
+          python src/ingestion/bse_bhavcopy_ingest.py $ARGS
