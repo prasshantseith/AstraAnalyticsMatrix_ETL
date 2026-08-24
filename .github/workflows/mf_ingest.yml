@@ -3,7 +3,7 @@ name: MF Ingestion Pipeline
 on:
   workflow_dispatch:        # Allows manual trigger
   schedule:
-    - cron: "0 6 * * *"     # Runs every day at 6 AM NZT
+    - cron: "0 20 * * *"    # Runs every day at 8 PM UTC (cron is always UTC)
 
 jobs:
   mf_ingest:
