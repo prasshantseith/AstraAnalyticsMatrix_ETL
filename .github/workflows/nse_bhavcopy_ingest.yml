@@ -2,8 +2,9 @@ name: NSE Bhavcopy Ingest (API Trigger)
 
 on:
   schedule:
-    # Daily incremental run against prod. Cron is UTC.
-    - cron: '0 22 * * *'
+    # Incremental run against prod, Mon-Sat at 20:00 UTC. Cron is UTC;
+    # day-of-week 1-6 = Mon-Sat (0/7 = Sun, excluded - no NSE trading Sunday).
+    - cron: '0 20 * * 1-6'
   workflow_dispatch:
     inputs:
       environment:
