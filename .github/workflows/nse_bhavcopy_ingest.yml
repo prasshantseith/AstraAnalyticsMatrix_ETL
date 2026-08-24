@@ -1,6 +1,9 @@
 name: NSE Bhavcopy Ingest (API Trigger)
 
 on:
+  schedule:
+    # Daily incremental run against prod. Cron is UTC.
+    - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
       environment:
@@ -26,7 +29,7 @@ on:
 
 jobs:
   ingest-dev:
-    if: inputs.environment == 'dev'
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -56,7 +59,7 @@ jobs:
           python src/ingestion/nse_bhavcopy_ingest.py $ARGS
 
   ingest-prod:
-    if: inputs.environment == 'prod'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
