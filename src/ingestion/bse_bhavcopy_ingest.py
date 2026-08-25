@@ -36,7 +36,15 @@ REQUEST_HEADERS = {
 # 1. Connect to Supabase PostgreSQL
 # -----------------------------
 def connect_to_postgres(environment):
-    return psycopg2.connect(get_db_dsn(environment))
+    # connect_timeout guards against a hung reconnect attempt (observed on
+    # the NSE job: the run froze for 2+ hours mid-backfill with no timeout
+    # set, most likely retrying a connection the pooler wasn't accepting).
+    # statement_timeout guards the same way against a single hung query.
+    return psycopg2.connect(
+        get_db_dsn(environment),
+        connect_timeout=15,
+        options="-c statement_timeout=30000",
+    )
 
 
 # -----------------------------
