@@ -12,11 +12,17 @@ on:
           - prod
         default: prod
   schedule:
-    - cron: "0 20 * * *"    # Runs every day at 8 PM UTC against both dev and prod
+    - cron: "0 20 * * *"    # Daily (all days) against dev
+    - cron: "0 18 * * 1-5"  # Weekdays 6 PM UTC - prod only
+    - cron: "0 19 * * 1-5"  # Weekdays 7 PM UTC - prod only
+    - cron: "0 20 * * 1-5"  # Weekdays 8 PM UTC - prod only
+    - cron: "0 21 * * 1-5"  # Weekdays 9 PM UTC - prod only
+    - cron: "0 0 * * 1-5"   # Weekdays 12 AM UTC - prod only
+    - cron: "0 2 * * 1-5"   # Weekdays 2 AM UTC - prod only
 
 jobs:
   ingest-dev:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 20 * * *') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -38,7 +44,7 @@ jobs:
         run: python src/ingestion/mf_ingest.py --environment dev
 
   ingest-prod:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+    if: (github.event_name == 'schedule' && github.event.schedule != '0 20 * * *') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
