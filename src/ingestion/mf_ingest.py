@@ -1,71 +1,26 @@
-import requests
-import psycopg2
-from psycopg2 import sql
-from datetime import datetime
+import argparse
 import os
 import sys
+from datetime import datetime
+
+import psycopg2
+import requests
+from psycopg2 import sql
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from utils.keyvault import get_db_dsn
 from utils.etl_job import get_job_config, set_job_status, log_run_start, log_run_end
 from utils.db import execute_values_counted
 
 JOB_NAME = "mf_nav_ingest"
 
-# -----------------------------
-# 1. Fetch Azure Key Vault Secret
-# -----------------------------
-def get_kv_secret(secret_name):
-    tenant_id = os.getenv("AZURE_TENANT_ID")
-    client_id = os.getenv("AZURE_CLIENT_ID")
-    client_secret = os.getenv("AZURE_CLIENT_SECRET")
-    keyvault_name = os.getenv("KEYVAULT_NAME")
-
-    # Step 1: Get Azure Access Token
-    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-    token_payload = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "resource": "https://vault.azure.net"
-    }
-
-    token_response = requests.post(token_url, data=token_payload)
-    token_json = token_response.json()
-
-    if "access_token" not in token_json:
-        raise Exception(f"Failed to get Azure token: {token_json}")
-
-    access_token = token_json["access_token"]
-
-    # Step 2: Fetch secret from Key Vault
-    secret_url = f"https://{keyvault_name}.vault.azure.net/secrets/{secret_name}?api-version=7.3"
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-    secret_response = requests.get(secret_url, headers=headers)
-    secret_json = secret_response.json()
-
-    return secret_json.get("value")
-
 
 # -----------------------------
-# 2. Connect to Supabase PostgreSQL
+# 1. Connect to Supabase PostgreSQL
 # -----------------------------
-def connect_to_postgres():
-    host = get_kv_secret("SUPABASE-POSTGRE-HOST")
-    database = get_kv_secret("SUPABASE-POSTGRE-DB")
-    user = get_kv_secret("SUPABASE-POSTGRE-USER")
-    password = get_kv_secret("SUPABASE-POSTGRE-PASSWORD")
-    port = os.getenv("SUPABASE_POSTGRE_PORT", "6543")
-
-    return psycopg2.connect(
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password,
-        sslmode="require"
-    )
+def connect_to_postgres(environment):
+    return psycopg2.connect(get_db_dsn(environment))
 
 
 # -----------------------------
@@ -138,7 +93,15 @@ def insert_into_postgres(cursor, target_schema, target_table, rows):
 # 6. Main
 # -----------------------------
 def main():
-    conn = connect_to_postgres()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--environment",
+        default=None,
+        help="dev or prod; defaults to the ENVIRONMENT env var (prod if unset)",
+    )
+    args = parser.parse_args()
+
+    conn = connect_to_postgres(args.environment)
     cursor = conn.cursor()
     log_id = None
 
