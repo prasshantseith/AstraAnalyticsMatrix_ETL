@@ -1,0 +1,49 @@
+name: NSE Index History Ingest
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+      index:
+        description: 'Optional index name, for example NIFTY 50'
+        required: false
+        type: string
+      start_date:
+        description: 'Optional start date YYYY-MM-DD'
+        required: false
+        type: string
+      end_date:
+        description: 'Optional end date YYYY-MM-DD'
+        required: false
+        type: string
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run NSE index history ingest
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          INDEX_NAME: ${{ inputs.index }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+        run: |
+          ARGS=(--environment "${{ inputs.environment }}")
+          if [ -n "$INDEX_NAME" ]; then ARGS+=(--index "$INDEX_NAME"); fi
+          if [ -n "$START_DATE" ]; then ARGS+=(--start-date "$START_DATE"); fi
+          if [ -n "$END_DATE" ]; then ARGS+=(--end-date "$END_DATE"); fi
+          python src/ingestion/nse_index_history_ingest.py "${ARGS[@]}"
