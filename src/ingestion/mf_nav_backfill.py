@@ -27,15 +27,18 @@ def connect_to_postgres(environment):
 # -----------------------------
 # 2. Active scheme codes from MF.MF
 # -----------------------------
-def fetch_active_scheme_codes(cursor):
-    cursor.execute(
-        """
+def fetch_active_scheme_codes(cursor, after_scheme_code=None):
+    query = """
         SELECT "SchemeCode"
         FROM "MF"."MF"
         WHERE "IsActive" = true AND "SchemeCode" IS NOT NULL
-        ORDER BY "SchemeCode"
-        """
-    )
+    """
+    parameters = ()
+    if after_scheme_code is not None:
+        query += ' AND "SchemeCode" > %s'
+        parameters = (after_scheme_code,)
+    query += ' ORDER BY "SchemeCode"'
+    cursor.execute(query, parameters)
     return [row[0] for row in cursor.fetchall()]
 
 
@@ -138,6 +141,12 @@ def main():
         default=0.2,
         help="Delay between mfapi.in requests",
     )
+    parser.add_argument(
+        "--resume-after-scheme-code",
+        type=int,
+        default=None,
+        help="Resume the MF.MF lookup after this scheme code (e.g. to continue a run cut off by the job timeout)",
+    )
     args = parser.parse_args()
 
     conn = connect_to_postgres(args.environment)
@@ -163,7 +172,7 @@ def main():
         elif args.scheme_code is not None:
             scheme_codes = [args.scheme_code]
         else:
-            scheme_codes = fetch_active_scheme_codes(cursor)
+            scheme_codes = fetch_active_scheme_codes(cursor, args.resume_after_scheme_code)
             if args.limit is not None:
                 scheme_codes = scheme_codes[:args.limit]
 
