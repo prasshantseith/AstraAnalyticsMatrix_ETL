@@ -1,0 +1,40 @@
+name: NSE Index Daily Snapshot Ingest
+
+on:
+  schedule:
+    - cron: '30 18 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+      snapshot_date:
+        description: 'Snapshot date YYYY-MM-DD (optional; defaults to yesterday)'
+        required: false
+        type: string
+
+jobs:
+  ingest:
+    if: github.event_name == 'schedule' || inputs.environment == 'dev' || inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run daily index snapshot ingest
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
+        run: |
+          ARGS=(--environment "${{ inputs.environment || 'prod' }}")
+          if [ -n "$SNAPSHOT_DATE" ]; then ARGS+=(--snapshot-date "$SNAPSHOT_DATE"); fi
+          python src/ingestion/nse_index_daily_snapshot_ingest.py "${ARGS[@]}"
