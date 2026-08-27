@@ -1,55 +1,66 @@
 name: MF Ingestion Pipeline
 
 on:
-  workflow_dispatch:        # Allows manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
   schedule:
-    - cron: "0 20 * * *"    # Runs every day at 8 PM UTC (cron is always UTC)
+    - cron: "0 20 * * *"    # Daily (all days) against dev
+    - cron: "0 18 * * 1-5"  # Weekdays 6 PM UTC - prod only
+    - cron: "0 19 * * 1-5"  # Weekdays 7 PM UTC - prod only
+    - cron: "0 20 * * 1-5"  # Weekdays 8 PM UTC - prod only
+    - cron: "0 21 * * 1-5"  # Weekdays 9 PM UTC - prod only
+    - cron: "0 0 * * 1-5"   # Weekdays 12 AM UTC - prod only
+    - cron: "0 2 * * 1-5"   # Weekdays 2 AM UTC - prod only
 
 jobs:
-  mf_ingest:
+  ingest-dev:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 20 * * *') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.12"
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-    - name: Get Azure Access Token
-      run: |
-        TOKEN=$(curl -X POST \
-          -H "Content-Type: application/x-www-form-urlencoded" \
-          -d "grant_type=client_credentials&client_id=${AZURE_CLIENT_ID}&client_secret=${AZURE_CLIENT_SECRET}&resource=https://vault.azure.net" \
-          https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/token | jq -r '.access_token')
+      - name: Run MF ingestion (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: python src/ingestion/mf_ingest.py --environment dev
 
-        echo "AZURE_TOKEN=$TOKEN" >> $GITHUB_ENV
-      env:
-        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ingest-prod:
+    if: (github.event_name == 'schedule' && github.event.schedule != '0 20 * * *') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Export Key Vault Name
-      run: echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
-    - name: Export Azure SP credentials
-      run: |
-        echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
-        echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_ENV
-        echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
-        echo "KEYVAULT_NAME=${{ secrets.KEYVAULT_NAME }}" >> $GITHUB_ENV
-    
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
 
-    - name: Run MF ingestion
-      run: python src/ingestion/mf_ingest.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-    - name: Upload logs
-      uses: actions/upload-artifact@v4
-      with:
-        name: ingestion-log
-        path: logs/ingestion.log
+      - name: Run MF ingestion (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: python src/ingestion/mf_ingest.py --environment prod
