@@ -46,13 +46,18 @@ def fetch_snapshot(source_url, snapshot_date):
 
 def parse_snapshot(text, snapshot_date):
     reader = csv.DictReader(io.StringIO(text))
-    rows = []
+    rows_by_name = {}
     for item in reader:
         index_name = (item.get("Index Name") or "").strip()
         if not index_name:
             continue
 
-        rows.append((
+        # Some historical snapshots list the same index twice in one day's
+        # file (e.g. around NSE index renames/restructures). Keep the last
+        # occurrence, matching the "last write wins" semantics of the
+        # ON CONFLICT DO UPDATE below, since duplicate keys in one VALUES
+        # batch make Postgres raise CardinalityViolation.
+        rows_by_name[index_name] = (
             index_name,
             snapshot_date,
             parse_number(item.get("Open Index Value")),
@@ -61,8 +66,8 @@ def parse_snapshot(text, snapshot_date):
             parse_number(item.get("Closing Index Value")),
             parse_volume(item.get("Volume")),
             parse_number(item.get("Turnover (Rs. Cr.)")),
-        ))
-    return rows
+        )
+    return list(rows_by_name.values())
 
 
 def upsert_rows(cursor, target_schema, target_table, rows, source_file):
