@@ -156,6 +156,12 @@ ON CONFLICT ("IndexName") DO UPDATE SET
     "NseIndexType" = EXCLUDED."NseIndexType",
     "StartDate" = EXCLUDED."StartDate";
 
+-- Use the project baseline for entries whose exact inception date has not
+-- been verified. The loader will receive only dates supported by NSE.
+UPDATE "Indices"."IndexConfig"
+SET "StartDate" = DATE '1996-01-01'
+WHERE "IndexName" NOT IN ('NIFTY 50', 'NIFTY 500', 'NIFTY BANK');
+
 UPDATE "Indices"."IndexConfig"
 SET "Enabled" = CASE
     WHEN "IndexName" IN ('NIFTY 50', 'NIFTY 500', 'NIFTY BANK') THEN true
