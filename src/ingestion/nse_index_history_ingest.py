@@ -141,7 +141,7 @@ def main():
             conn.commit()
             return
 
-        query = 'SELECT "IndexName", "NseIndexType", "StartDate" FROM "Indicies"."IndexConfig" WHERE "Enabled" = true'
+        query = 'SELECT "IndexName", "NseIndexType", "StartDate" FROM "Indices"."IndexConfig" WHERE "Enabled" = true'
         parameters = ()
         if args.index_name:
             query += ' AND "IndexName" = %s'
