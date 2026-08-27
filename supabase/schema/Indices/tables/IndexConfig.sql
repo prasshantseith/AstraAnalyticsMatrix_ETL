@@ -1,4 +1,4 @@
-create table "Indicies"."IndexConfig"
+create table "Indices"."IndexConfig"
 (
     "IndexName" varchar(100) PRIMARY KEY,
     "NseIndexType" varchar(100) NOT NULL,

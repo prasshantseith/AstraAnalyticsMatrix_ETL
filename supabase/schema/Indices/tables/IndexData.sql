@@ -1,4 +1,4 @@
-create table "Indicies"."IndexData"
+create table "Indices"."IndexData"
 (
     "IndexName" varchar(100) NOT NULL,
     "TradeDate" date NOT NULL,
