@@ -1,6 +1,10 @@
 name: BSE Bhavcopy Ingest (API Trigger)
 
 on:
+  schedule:
+    # Incremental run against prod, Monday-Friday at 20:00 UTC. Cron is UTC;
+    # BSE does not publish equity bhavcopy files on weekends.
+    - cron: '0 20 * * 1-5'
   workflow_dispatch:
     inputs:
       environment:
@@ -56,7 +60,7 @@ jobs:
           python src/ingestion/bse_bhavcopy_ingest.py $ARGS
 
   ingest-prod:
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
