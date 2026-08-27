@@ -3,7 +3,7 @@ import csv
 import io
 import os
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import psycopg2
 import requests
@@ -17,6 +17,7 @@ from utils.keyvault import get_db_dsn
 
 JOB_NAME = "nse_index_daily_snapshot_ingest"
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def connect_to_postgres(environment):
@@ -99,8 +100,8 @@ def main():
     parser.add_argument(
         "--snapshot-date",
         type=date.fromisoformat,
-        default=date.today() - timedelta(days=1),
-        help="Snapshot date in YYYY-MM-DD format; defaults to yesterday",
+        default=datetime.now(IST).date() - timedelta(days=1),
+        help="Snapshot date in YYYY-MM-DD format; defaults to the most recent IST trading day (yesterday, IST)",
     )
     args = parser.parse_args()
 
