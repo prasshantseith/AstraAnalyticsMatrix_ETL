@@ -1,8 +1,9 @@
 name: NSE Index Daily Snapshot Ingest
 
 on:
-  schedule:
-    - cron: '30 19 * * 1-5'
+  # No schedule trigger here anymore - the daily incremental run is owned by
+  # daily_incremental_orchestrator.yml, which calls this script directly.
+  # This workflow is now manual-dispatch only, for ad-hoc runs.
   workflow_dispatch:
     inputs:
       environment:
@@ -20,7 +21,7 @@ on:
 
 jobs:
   ingest:
-    if: github.event_name == 'schedule' || inputs.environment == 'dev' || inputs.environment == 'prod'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

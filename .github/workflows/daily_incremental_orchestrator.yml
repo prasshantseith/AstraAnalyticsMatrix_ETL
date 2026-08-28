@@ -1,0 +1,44 @@
+name: Daily Incremental Ingest (Orchestrator)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+  schedule:
+    # Weekdays, off the hour to avoid GitHub's start-of-hour scheduling
+    # congestion (schedule events can be delayed/dropped at :00).
+    # Calls MF, NSE Bhavcopy, BSE Bhavcopy, NSE Index in sequence - see
+    # src/orchestration/daily_incremental_orchestrator.py for the pipeline
+    # list and error handling. NSE Bhavcopy also has its own Saturday-only
+    # schedule since NSE (unlike the others) publishes a Saturday bhavcopy.
+    - cron: '17 20 * * 1-5'
+
+jobs:
+  run-orchestrator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run incremental ingest orchestrator
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python src/orchestration/daily_incremental_orchestrator.py --environment "${{ inputs.environment || 'prod' }}"

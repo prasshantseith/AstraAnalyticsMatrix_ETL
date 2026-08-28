@@ -43,6 +43,17 @@ def get_secret(base_name: str, environment: str = None) -> str:
     return client.get_secret(secret_name).value
 
 
+def get_secret_shared(base_name: str) -> str:
+    """
+    Fetches a Key Vault secret that isn't per-environment (e.g. SMTP
+    credentials used for alerting regardless of dev/prod target) -
+    unlike get_secret(), no '-DEV' suffix is ever applied.
+    base_name: e.g. 'SMTP-PASSWORD'
+    """
+    client = _get_client()
+    return client.get_secret(base_name).value
+
+
 def get_db_dsn(environment: str = None) -> str:
     """Builds a full Postgres DSN from the four separate KV secrets."""
     client = _get_client()  # one authenticated client, reused for all four
