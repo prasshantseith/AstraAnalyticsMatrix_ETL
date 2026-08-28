@@ -2,9 +2,12 @@ name: NSE Bhavcopy Ingest (API Trigger)
 
 on:
   schedule:
-    # Incremental run against prod, Mon-Sat at 20:00 UTC. Cron is UTC;
-    # day-of-week 1-6 = Mon-Sat (0/7 = Sun, excluded - no NSE trading Sunday).
-    - cron: '0 20 * * 1-6'
+    # Mon-Fri is now owned by daily_incremental_orchestrator.yml, which
+    # calls this script directly alongside MF/BSE/NSE Index. This schedule
+    # only covers Saturday, since NSE (unlike the other sources) publishes
+    # a Saturday bhavcopy. Off the hour to avoid GitHub's start-of-hour
+    # scheduling congestion. Cron is UTC.
+    - cron: '23 20 * * 6'
   workflow_dispatch:
     inputs:
       environment:
