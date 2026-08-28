@@ -11,6 +11,11 @@ on:
           - dev
           - prod
         default: prod
+      test_email:
+        description: 'Skip all pipelines, just send a test alert email (verifies Key Vault SMTP config)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     # Weekdays, off the hour to avoid GitHub's start-of-hour scheduling
     # congestion (schedule events can be delayed/dropped at :00).
@@ -41,4 +46,6 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
-          python src/orchestration/daily_incremental_orchestrator.py --environment "${{ inputs.environment || 'prod' }}"
+          ARGS=(--environment "${{ inputs.environment || 'prod' }}")
+          if [ "${{ inputs.test_email || 'false' }}" = "true" ]; then ARGS+=(--test-email); fi
+          python src/orchestration/daily_incremental_orchestrator.py "${ARGS[@]}"

@@ -78,7 +78,26 @@ def build_email_body(results, environment):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--environment", default="prod", help="dev or prod (default: prod)")
+    parser.add_argument(
+        "--test-email",
+        action="store_true",
+        help="Skip all pipelines and just send a test alert email, to verify "
+             "the Key Vault SMTP config end to end.",
+    )
     args = parser.parse_args()
+
+    if args.test_email:
+        run_time = datetime.now(timezone.utc).isoformat()
+        send_alert_email(
+            "[AstraAnalyticsMatrix ETL] Test email from daily_incremental_orchestrator",
+            f"This is a test of the orchestrator's alert email path.\n\n"
+            f"Sent at: {run_time}\n"
+            f"If you received this, Key Vault SMTP config is working correctly.",
+            ALERT_TO,
+            cc=ALERT_CC,
+        )
+        print(f"Test email sent to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
+        return
 
     # Run every pipeline in order, regardless of earlier failures.
     results = [run_pipeline(pipeline, args.environment) for pipeline in PIPELINES]
