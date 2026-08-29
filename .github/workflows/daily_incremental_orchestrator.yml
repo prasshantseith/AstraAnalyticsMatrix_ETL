@@ -16,14 +16,15 @@ on:
         required: false
         type: boolean
         default: false
-  schedule:
-    # Weekdays, off the hour to avoid GitHub's start-of-hour scheduling
-    # congestion (schedule events can be delayed/dropped at :00).
-    # Calls MF, NSE Bhavcopy, BSE Bhavcopy, NSE Index in sequence - see
-    # src/orchestration/daily_incremental_orchestrator.py for the pipeline
-    # list and error handling. NSE Bhavcopy also has its own Saturday-only
-    # schedule since NSE (unlike the others) publishes a Saturday bhavcopy.
-    - cron: '17 20 * * 1-5'
+  # No schedule trigger here - a Render Cron Job (etl-daily-incremental-trigger)
+  # calls this workflow's dispatch API at 20:00, 23:00, and 03:00 UTC,
+  # Monday-Friday, instead of GitHub's own schedule event (which is
+  # unreliable under load - see git history for why). Calls MF, NSE
+  # Bhavcopy, BSE Bhavcopy, NSE Index in sequence - see
+  # src/orchestration/daily_incremental_orchestrator.py for the pipeline
+  # list and error handling. NSE Bhavcopy also has its own Saturday-only
+  # GitHub schedule since NSE (unlike the others) publishes a Saturday
+  # bhavcopy and Render doesn't cover Saturdays.
 
 jobs:
   run-orchestrator:
