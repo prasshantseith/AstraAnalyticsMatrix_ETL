@@ -129,14 +129,21 @@ def main():
     results = [run_pipeline(pipeline, args.environment) for pipeline in PIPELINES]
 
     failed = [r for r in results if r["status"] == "failed"]
+    run_date = datetime.now(timezone.utc).date().isoformat()
     if failed:
-        run_date = datetime.now(timezone.utc).date().isoformat()
         subject = (
             f"[AstraAnalyticsMatrix ETL] Incremental ingest FAILURES "
             f"({len(failed)}/{len(results)}) - {run_date}"
         )
-        send_alert_email(subject, build_email_body(results, args.environment), ALERT_TO, cc=ALERT_CC)
-        print(f"Sent failure alert email to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
+    else:
+        subject = (
+            f"[AstraAnalyticsMatrix ETL] Incremental ingest SUCCESS "
+            f"({len(results)}/{len(results)}) - {run_date}"
+        )
+    # Always sent now (was failure-only) - one consolidated summary per run,
+    # covering every step, success or not.
+    send_alert_email(subject, build_email_body(results, args.environment), ALERT_TO, cc=ALERT_CC)
+    print(f"Sent summary email to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
 
     print("\n=== Final summary ===")
     print(build_summary(results))
