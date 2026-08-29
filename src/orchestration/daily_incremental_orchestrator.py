@@ -11,14 +11,15 @@ from utils.email_utils import send_alert_email
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Ordered list of incremental pipelines this orchestrator runs, one at a time.
-# To add a new pipeline (e.g. BSE Index), append another entry here once its
-# ingestion script exists under src/ingestion/ and accepts --environment.
+# To add a new pipeline, append another entry here once its ingestion
+# script exists under src/ingestion/ and accepts --environment.
 PIPELINES = [
     {"name": "MF Ingestion", "script": "src/ingestion/mf_ingest.py"},
     {"name": "NSE Bhavcopy", "script": "src/ingestion/nse_bhavcopy_ingest.py"},
     {"name": "BSE Bhavcopy", "script": "src/ingestion/bse_bhavcopy_ingest.py"},
     {"name": "NSE Index Daily Snapshot", "script": "src/ingestion/nse_index_daily_snapshot_ingest.py"},
-    {"name": "Commodity Data (Gold/Silver/Copper)", "script": "src/ingestion/commodity_data_ingest.py"},
+    {"name": "BSE Index", "script": "src/ingestion/bse_index_ingest.py"},
+    {"name": "Commodity Data (Gold/Silver/Copper + 12 more)", "script": "src/ingestion/commodity_data_ingest.py"},
 ]
 
 ALERT_TO = "prasshantseith@gmail.com"
