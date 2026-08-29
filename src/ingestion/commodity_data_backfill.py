@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.ingestion.commodity_data_ingest import connect_to_postgres, upsert_rows
+from src.ingestion.commodity_data_ingest import connect_to_postgres, normalize_prices, upsert_rows
 from utils.etl_job import get_job_config, log_run_end, log_run_start, set_job_status
 from utils.yahoo_finance import fetch_ohlc
 
@@ -50,7 +50,7 @@ def main():
             return
 
         query = (
-            'SELECT "CommodityName", "YahooSymbol", "StartDate" '
+            'SELECT "CommodityName", "YahooSymbol", "StartDate", "PriceDivisor" '
             'FROM "Commodities"."CommodityConfig" WHERE "Enabled" = true'
         )
         parameters = ()
@@ -62,9 +62,9 @@ def main():
         commodities = cursor.fetchall()
 
         total_rows = 0
-        for commodity_name, yahoo_symbol, configured_start in commodities:
+        for commodity_name, yahoo_symbol, configured_start, price_divisor in commodities:
             start_date = args.start_date or configured_start
-            rows = fetch_ohlc(yahoo_symbol, start_date=start_date, end_date=args.end_date)
+            rows = normalize_prices(fetch_ohlc(yahoo_symbol, start_date=start_date, end_date=args.end_date), price_divisor)
             if rows:
                 total_rows += upsert_rows(
                     cursor, config["target_schema"], config["target_table"],

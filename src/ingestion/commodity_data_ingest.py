@@ -20,6 +20,20 @@ def connect_to_postgres(environment):
     return psycopg2.connect(get_db_dsn(environment), connect_timeout=15)
 
 
+def normalize_prices(rows, price_divisor):
+    """Some Yahoo symbols (grain/soft futures) quote in USX (cents) rather
+    than USD. Dividing here keeps CommodityData consistently USD instead of
+    silently mixing units across commodities."""
+    if price_divisor == 1:
+        return rows
+    for row in rows:
+        row["open"] = row["open"] / price_divisor if row["open"] is not None else None
+        row["high"] = row["high"] / price_divisor if row["high"] is not None else None
+        row["low"] = row["low"] / price_divisor if row["low"] is not None else None
+        row["close"] = row["close"] / price_divisor if row["close"] is not None else None
+    return rows
+
+
 def upsert_rows(cursor, target_schema, target_table, commodity_name, source_symbol, rows):
     values = [
         (
@@ -74,14 +88,14 @@ def main():
             return
 
         cursor.execute(
-            'SELECT "CommodityName", "YahooSymbol", "StartDate" '
+            'SELECT "CommodityName", "YahooSymbol", "StartDate", "PriceDivisor" '
             'FROM "Commodities"."CommodityConfig" WHERE "Enabled" = true ORDER BY "CommodityName"'
         )
         commodities = cursor.fetchall()
 
         today = date.today()
         total_rows = 0
-        for commodity_name, yahoo_symbol, configured_start in commodities:
+        for commodity_name, yahoo_symbol, configured_start, price_divisor in commodities:
             cursor.execute(
                 'SELECT MAX("TradeDate") FROM "Commodities"."CommodityData" WHERE "CommodityName" = %s',
                 (commodity_name,),
@@ -93,7 +107,7 @@ def main():
                 print(f"{commodity_name}: up to date")
                 continue
 
-            rows = fetch_ohlc(yahoo_symbol, start_date=start_date, end_date=today)
+            rows = normalize_prices(fetch_ohlc(yahoo_symbol, start_date=start_date, end_date=today), price_divisor)
             if rows:
                 total_rows += upsert_rows(
                     cursor, config["target_schema"], config["target_table"],
