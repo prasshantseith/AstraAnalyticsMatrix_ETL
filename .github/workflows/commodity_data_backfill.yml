@@ -1,0 +1,80 @@
+name: Commodity Data Backfill (API Trigger)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      start_date:
+        description: >
+          Backfill start date YYYY-MM-DD (optional; defaults to each
+          commodity's earliest available history, ~2000-08-30). PROD ONLY -
+          dev always uses 2025-01-01 regardless of this input, so dev only
+          ever holds 2025/2026 data.
+        required: false
+        type: string
+      end_date:
+        description: 'Backfill end date YYYY-MM-DD (optional; defaults to yesterday)'
+        required: false
+        type: string
+      commodity:
+        description: 'Only backfill this single commodity (optional, e.g. Gold, Silver, Copper)'
+        required: false
+        type: string
+
+jobs:
+  # Dev intentionally never gets the full history - full 30-year-style
+  # backfills are prod only. Dev's start date is hardcoded here and ignores
+  # the start_date input on purpose, so a mistaken full backfill can't land
+  # in dev.
+  backfill-dev:
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run commodity data backfill (dev, 2025-01-01 onward only)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          BACKFILL_END_DATE: ${{ inputs.end_date }}
+          BACKFILL_COMMODITY: ${{ inputs.commodity }}
+        run: |
+          ARGS=(--environment dev --start-date 2025-01-01)
+          if [ -n "$BACKFILL_END_DATE" ]; then ARGS+=(--end-date "$BACKFILL_END_DATE"); fi
+          if [ -n "$BACKFILL_COMMODITY" ]; then ARGS+=(--commodity "$BACKFILL_COMMODITY"); fi
+          python src/ingestion/commodity_data_backfill.py "${ARGS[@]}"
+
+  backfill-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run commodity data backfill (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          BACKFILL_START_DATE: ${{ inputs.start_date }}
+          BACKFILL_END_DATE: ${{ inputs.end_date }}
+          BACKFILL_COMMODITY: ${{ inputs.commodity }}
+        run: |
+          ARGS=(--environment prod)
+          if [ -n "$BACKFILL_START_DATE" ]; then ARGS+=(--start-date "$BACKFILL_START_DATE"); fi
+          if [ -n "$BACKFILL_END_DATE" ]; then ARGS+=(--end-date "$BACKFILL_END_DATE"); fi
+          if [ -n "$BACKFILL_COMMODITY" ]; then ARGS+=(--commodity "$BACKFILL_COMMODITY"); fi
+          python src/ingestion/commodity_data_backfill.py "${ARGS[@]}"

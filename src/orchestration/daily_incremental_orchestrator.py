@@ -18,6 +18,7 @@ PIPELINES = [
     {"name": "NSE Bhavcopy", "script": "src/ingestion/nse_bhavcopy_ingest.py"},
     {"name": "BSE Bhavcopy", "script": "src/ingestion/bse_bhavcopy_ingest.py"},
     {"name": "NSE Index Daily Snapshot", "script": "src/ingestion/nse_index_daily_snapshot_ingest.py"},
+    {"name": "Commodity Data (Gold/Silver/Copper)", "script": "src/ingestion/commodity_data_ingest.py"},
 ]
 
 ALERT_TO = "prasshantseith@gmail.com"
