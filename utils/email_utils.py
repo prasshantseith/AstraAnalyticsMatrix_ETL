@@ -1,5 +1,6 @@
 import smtplib
 import ssl
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from utils.keyvault import get_secret_shared
@@ -27,8 +28,13 @@ def _load_smtp_config():
         return None
 
 
-def send_alert_email(subject, body, to_email, cc=None):
-    """Send a plain-text alert email via SMTP, using creds from Key Vault.
+def send_alert_email(subject, body, to_email, cc=None, html_body=None):
+    """Send an alert email via SMTP, using creds from Key Vault.
+
+    body is always sent as the plain-text fallback. Pass html_body to also
+    send a multipart/alternative HTML version - most clients render that
+    instead of the plain-text part, but the fallback keeps it readable in
+    clients that don't render HTML.
 
     Same idea as the SMTP setup in AstraAnalyticsMatrixAPI (app/email_utils.py),
     reusing the mailbox already configured there. If SMTP isn't configured,
@@ -46,7 +52,13 @@ def send_alert_email(subject, body, to_email, cc=None):
     smtp_password = config["password"]
     smtp_from_email = config["from_email"] or smtp_user
 
-    message = MIMEText(body)
+    if html_body:
+        message = MIMEMultipart("alternative")
+        message.attach(MIMEText(body, "plain"))
+        message.attach(MIMEText(html_body, "html"))
+    else:
+        message = MIMEText(body, "plain")
+
     message["Subject"] = subject
     message["From"] = smtp_from_email
     message["To"] = to_email

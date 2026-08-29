@@ -101,6 +101,109 @@ def build_email_body(results, environment):
     return body
 
 
+def _escape_html(text):
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+# (background, text) colors per status - kept as plain hex pairs rather than
+# a hex+alpha shorthand, since 8-digit hex alpha isn't reliably supported
+# across email clients (notably Outlook).
+STATUS_COLORS = {
+    "success": ("#dafbe1", "#1a7f37"),
+    "failed": ("#ffebe9", "#cf222e"),
+}
+
+
+def build_email_html(results, environment):
+    failed = [r for r in results if r["status"] == "failed"]
+    run_date = datetime.now(timezone.utc).date().isoformat()
+
+    rows_html = ""
+    for r in results:
+        bg, fg = STATUS_COLORS.get(r["status"], ("#f6f8fa", "#57606a"))
+        rows_html += f"""
+        <tr>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:14px;color:#1f2328;">{_escape_html(r['name'])}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;">
+            <span style="display:inline-block;padding:3px 10px;border-radius:12px;background:{bg};color:{fg};font-family:Arial,sans-serif;font-size:12px;font-weight:bold;">{r['status'].upper()}</span>
+          </td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{r['start'].strftime('%H:%M:%S')} UTC</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{r['end'].strftime('%H:%M:%S')} UTC</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;text-align:right;white-space:nowrap;">{r['duration']:.1f}s</td>
+        </tr>
+        """
+
+    failure_html = ""
+    if failed:
+        blocks = "".join(
+            f"""
+            <div style="margin-bottom:16px;border:1px solid #ffcecb;border-radius:6px;overflow:hidden;">
+              <div style="background:#ffebe9;padding:8px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#cf222e;">{_escape_html(r['name'])}</div>
+              <pre style="margin:0;padding:12px 14px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.5;color:#1f2328;background:#f6f8fa;white-space:pre-wrap;word-break:break-word;">{_escape_html(r['error'])}</pre>
+            </div>
+            """
+            for r in failed
+        )
+        failure_html = f"""
+        <h3 style="font-family:Arial,sans-serif;font-size:15px;color:#cf222e;margin:24px 0 12px 0;">Failure Details</h3>
+        {blocks}
+        """
+
+    status_label = "All Steps Succeeded" if not failed else f"{len(failed)} of {len(results)} Steps Failed"
+    status_bg, status_fg = STATUS_COLORS["success"] if not failed else STATUS_COLORS["failed"]
+
+    return f"""\
+<html>
+<body style="margin:0;padding:0;background:#f6f8fa;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f8fa;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+          <tr>
+            <td style="background:#1f2937;padding:20px 24px;">
+              <div style="font-family:Arial,sans-serif;font-size:16px;color:#ffffff;font-weight:bold;">AstraAnalyticsMatrix ETL</div>
+              <div style="font-family:Arial,sans-serif;font-size:13px;color:#9ca3af;margin-top:2px;">Daily Incremental Ingest &mdash; {run_date} &mdash; environment={environment}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px 0 24px;">
+              <span style="display:inline-block;padding:4px 12px;border-radius:12px;background:{status_bg};color:{status_fg};font-family:Arial,sans-serif;font-size:13px;font-weight:bold;">{status_label}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px 24px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:6px;">
+                <tr style="background:#f6f8fa;">
+                  <th align="left" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:11px;color:#57606a;text-transform:uppercase;letter-spacing:0.03em;">Step</th>
+                  <th align="center" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:11px;color:#57606a;text-transform:uppercase;letter-spacing:0.03em;">Status</th>
+                  <th align="left" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:11px;color:#57606a;text-transform:uppercase;letter-spacing:0.03em;">Start</th>
+                  <th align="left" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:11px;color:#57606a;text-transform:uppercase;letter-spacing:0.03em;">End</th>
+                  <th align="right" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:11px;color:#57606a;text-transform:uppercase;letter-spacing:0.03em;">Duration</th>
+                </tr>
+                {rows_html}
+              </table>
+              {failure_html}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:#f6f8fa;border-top:1px solid #e5e7eb;">
+              <div style="font-family:Arial,sans-serif;font-size:12px;color:#9ca3af;">Sent automatically by daily_incremental_orchestrator.py</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--environment", default="prod", help="dev or prod (default: prod)")
@@ -113,14 +216,30 @@ def main():
     args = parser.parse_args()
 
     if args.test_email:
-        run_time = datetime.now(timezone.utc).isoformat()
+        # Sample results exercising the real HTML table (success + a
+        # failure, so the failure-details block renders too), rather than
+        # actually running any pipeline - just to verify the email path
+        # and formatting end to end.
+        now = datetime.now(timezone.utc)
+        sample_results = [
+            {"name": p["name"], "start": now, "end": now, "duration": 12.3, "status": "success", "error": None}
+            for p in PIPELINES[:-1]
+        ] + [
+            {
+                "name": PIPELINES[-1]["name"],
+                "start": now,
+                "end": now,
+                "duration": 4.1,
+                "status": "failed",
+                "error": "Sample error - this is a test email, not a real failure.",
+            }
+        ]
         send_alert_email(
             "[AstraAnalyticsMatrix ETL] Test email from daily_incremental_orchestrator",
-            f"This is a test of the orchestrator's alert email path.\n\n"
-            f"Sent at: {run_time}\n"
-            f"If you received this, Key Vault SMTP config is working correctly.",
+            build_email_body(sample_results, args.environment),
             ALERT_TO,
             cc=ALERT_CC,
+            html_body=build_email_html(sample_results, args.environment),
         )
         print(f"Test email sent to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
         return
@@ -142,7 +261,13 @@ def main():
         )
     # Always sent now (was failure-only) - one consolidated summary per run,
     # covering every step, success or not.
-    send_alert_email(subject, build_email_body(results, args.environment), ALERT_TO, cc=ALERT_CC)
+    send_alert_email(
+        subject,
+        build_email_body(results, args.environment),
+        ALERT_TO,
+        cc=ALERT_CC,
+        html_body=build_email_html(results, args.environment),
+    )
     print(f"Sent summary email to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
 
     print("\n=== Final summary ===")
