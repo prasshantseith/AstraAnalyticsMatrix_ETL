@@ -12,7 +12,15 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 
 # Ordered list of incremental pipelines this orchestrator runs, one at a time.
 # To add a new pipeline, append another entry here once its ingestion
-# script exists under src/ingestion/ and accepts --environment.
+# script exists under src/ingestion/ and accepts --environment. "extra_args"
+# is optional, for scripts that need more than just --environment (e.g.
+# call_procedure.py, which is generic and needs --job-name/--procedure
+# to say which one).
+#
+# The three refresh procedures at the end must run after all ingestion
+# (they recompute derived data) and Refresh Date Flags must run before
+# the two performance refreshes (both filter on Report.dimDate's
+# IsCurrent* flags, which only Refresh Date Flags sets for "today").
 PIPELINES = [
     {"name": "MF Ingestion", "script": "src/ingestion/mf_ingest.py"},
     {"name": "NSE Bhavcopy", "script": "src/ingestion/nse_bhavcopy_ingest.py"},
@@ -20,6 +28,21 @@ PIPELINES = [
     {"name": "NSE Index Daily Snapshot", "script": "src/ingestion/nse_index_daily_snapshot_ingest.py"},
     {"name": "BSE Index", "script": "src/ingestion/bse_index_ingest.py"},
     {"name": "Commodity Data (Gold/Silver/Copper + 12 more)", "script": "src/ingestion/commodity_data_ingest.py"},
+    {
+        "name": "Refresh Date Flags",
+        "script": "src/orchestration/call_procedure.py",
+        "extra_args": ["--job-name", "refresh_dim_date_flags", "--procedure", "Report.usp_RefreshDimDateFlags"],
+    },
+    {
+        "name": "Refresh MF Performance",
+        "script": "src/orchestration/call_procedure.py",
+        "extra_args": ["--job-name", "refresh_mf_performance", "--procedure", "MF.usp_RefreshMFPerformance"],
+    },
+    {
+        "name": "Refresh Stock Performance",
+        "script": "src/orchestration/call_procedure.py",
+        "extra_args": ["--job-name", "refresh_stock_performance", "--procedure", "Stocks.usp_RefreshStockPerformance"],
+    },
 ]
 
 ALERT_TO = "prasshantseith@gmail.com"
@@ -28,11 +51,12 @@ ALERT_CC = ["support@astraanalyticsmatrix.com"]
 
 def run_pipeline(pipeline, environment):
     script_path = os.path.join(REPO_ROOT, pipeline["script"])
+    extra_args = pipeline.get("extra_args", [])
     start = datetime.now(timezone.utc)
     print(f"[{start.isoformat()}] START {pipeline['name']} (environment={environment})", flush=True)
 
     result = subprocess.run(
-        [sys.executable, script_path, "--environment", environment],
+        [sys.executable, script_path, "--environment", environment, *extra_args],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
