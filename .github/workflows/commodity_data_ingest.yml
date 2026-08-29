@@ -1,0 +1,50 @@
+name: Commodity Data Ingest (API Trigger)
+
+on:
+  # No schedule trigger here - daily_incremental_orchestrator.yml calls this
+  # script directly alongside MF/NSE/BSE/NSE Index (see that workflow / the
+  # Render Cron Job that triggers it). This workflow is manual-dispatch only,
+  # for ad-hoc runs.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+
+jobs:
+  ingest-dev:
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run commodity data ingest (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: python src/ingestion/commodity_data_ingest.py --environment dev
+
+  ingest-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run commodity data ingest (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: python src/ingestion/commodity_data_ingest.py --environment prod
