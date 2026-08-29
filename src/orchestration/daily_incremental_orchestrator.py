@@ -3,12 +3,33 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils.email_utils import send_alert_email
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# For the email table's Start/End columns - IST since the data is India's,
+# NZ since that's the reader's local time. NZ observes DST (NZST/NZDT),
+# which is why this uses zoneinfo rather than a fixed offset (IST has no
+# DST, but ZoneInfo handles it identically either way).
+IST_TZ = ZoneInfo("Asia/Kolkata")
+NZ_TZ = ZoneInfo("Pacific/Auckland")
+
+
+def format_time_cell_html(dt):
+    """Stacked UTC/IST/NZ lines for one table cell - three timezones side
+    by side on one line would make the column too wide in a 640px email."""
+    utc_str = dt.strftime("%H:%M:%S")
+    ist_str = dt.astimezone(IST_TZ).strftime("%H:%M:%S %Z")
+    nz_str = dt.astimezone(NZ_TZ).strftime("%H:%M:%S %Z")
+    return (
+        f'<div>{utc_str} UTC</div>'
+        f'<div style="color:#8b949e;font-size:11px;margin-top:2px;">{ist_str}</div>'
+        f'<div style="color:#8b949e;font-size:11px;margin-top:1px;">{nz_str}</div>'
+    )
 
 # Ordered list of incremental pipelines this orchestrator runs, one at a time.
 # To add a new pipeline, append another entry here once its ingestion
@@ -132,8 +153,8 @@ def build_email_html(results, environment):
           <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;">
             <span style="display:inline-block;padding:3px 10px;border-radius:12px;background:{bg};color:{fg};font-family:Arial,sans-serif;font-size:12px;font-weight:bold;">{r['status'].upper()}</span>
           </td>
-          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{r['start'].strftime('%H:%M:%S')} UTC</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{r['end'].strftime('%H:%M:%S')} UTC</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{format_time_cell_html(r['start'])}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;white-space:nowrap;">{format_time_cell_html(r['end'])}</td>
           <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:13px;color:#57606a;text-align:right;white-space:nowrap;">{r['duration']:.1f}s</td>
         </tr>
         """
