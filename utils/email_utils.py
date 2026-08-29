@@ -1,7 +1,14 @@
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 
 from utils.keyvault import get_secret_shared
+
+# Port 465 is implicit TLS from the first byte (needs SMTP_SSL); port 587
+# (and anything else) is plaintext-then-upgrade (needs SMTP + starttls()).
+# Using the wrong one for a given port hangs until the peer resets the
+# connection, rather than failing cleanly.
+SSL_PORT = 465
 
 
 def _load_smtp_config():
@@ -23,10 +30,10 @@ def _load_smtp_config():
 def send_alert_email(subject, body, to_email, cc=None):
     """Send a plain-text alert email via SMTP, using creds from Key Vault.
 
-    Mirrors the SMTP setup already used in AstraAnalyticsMatrixAPI
-    (app/email_utils.py) so the same Gmail SMTP App Password can be reused.
-    If SMTP isn't configured, logs the email instead of raising, so a
-    missing secret doesn't fail the whole ingest run.
+    Same idea as the SMTP setup in AstraAnalyticsMatrixAPI (app/email_utils.py),
+    reusing the mailbox already configured there. If SMTP isn't configured,
+    logs the email instead of raising, so a missing secret doesn't fail the
+    whole ingest run.
     """
     config = _load_smtp_config()
     if config is None:
@@ -47,7 +54,12 @@ def send_alert_email(subject, body, to_email, cc=None):
         message["Cc"] = ", ".join(cc)
 
     recipients = [to_email, *(cc or [])]
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.sendmail(smtp_from_email, recipients, message.as_string())
+    if smtp_port == SSL_PORT:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ssl.create_default_context()) as server:
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_from_email, recipients, message.as_string())
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_from_email, recipients, message.as_string())
