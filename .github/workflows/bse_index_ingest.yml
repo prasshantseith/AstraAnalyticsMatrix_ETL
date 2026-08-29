@@ -1,0 +1,41 @@
+name: BSE Index Ingest (API Trigger)
+
+on:
+  # No schedule trigger here - daily_incremental_orchestrator.yml calls this
+  # script directly alongside MF/NSE/BSE Stocks/NSE Index/Commodities. This
+  # workflow is manual-dispatch only, for ad-hoc runs.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      snapshot_date:
+        description: 'Snapshot date YYYY-MM-DD (optional; defaults to yesterday, IST)'
+        required: false
+        type: string
+
+jobs:
+  ingest:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: Run BSE index ingest
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
+        run: |
+          ARGS=(--environment "${{ inputs.environment || 'prod' }}")
+          if [ -n "$SNAPSHOT_DATE" ]; then ARGS+=(--snapshot-date "$SNAPSHOT_DATE"); fi
+          python src/ingestion/bse_index_ingest.py "${ARGS[@]}"
