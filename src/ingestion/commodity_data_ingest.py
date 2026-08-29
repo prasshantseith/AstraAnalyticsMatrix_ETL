@@ -24,6 +24,10 @@ def normalize_prices(rows, price_divisor):
     """Some Yahoo symbols (grain/soft futures) quote in USX (cents) rather
     than USD. Dividing here keeps CommodityData consistently USD instead of
     silently mixing units across commodities."""
+    # PriceDivisor comes back from Postgres as a Decimal (numeric column);
+    # Python won't divide a float by a Decimal directly, so normalize to
+    # float here regardless of what type it arrived as.
+    price_divisor = float(price_divisor)
     if price_divisor == 1:
         return rows
     for row in rows:
