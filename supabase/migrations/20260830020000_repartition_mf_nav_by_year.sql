@@ -67,7 +67,17 @@ begin
 end $$;
 
 -- Copy every row from the legacy (monthly-partitioned) table into the new
--- yearly-partitioned one.
+-- yearly-partitioned one, one year at a time.
+--
+-- The first attempt at this migration did the whole copy as a single
+-- INSERT ... SELECT and blew a 2-minute statement_timeout (MF_NAV has far
+-- more data than expected). A do $$ ... $$ block looping over years
+-- internally wouldn't have fixed it either - that's still ONE top-level
+-- statement, so every iteration shares the same timeout budget. Each year
+-- below is its own separate statement instead, so each gets a fresh
+-- timeout window. ON CONFLICT ... DO NOTHING makes a retry after a
+-- partial failure safe (a year that already copied won't error on
+-- re-insert).
 do $$
 begin
     if exists (
@@ -80,8 +90,802 @@ begin
         overriding system value
         select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
         from "MF"."MF_NAV_legacy_monthly"
-        where "NavDate" is not null;
+        where "NavDate" is not null and "NavDate" < '1996-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
 
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '1996-01-01' and "NavDate" < '1997-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '1997-01-01' and "NavDate" < '1998-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '1998-01-01' and "NavDate" < '1999-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '1999-01-01' and "NavDate" < '2000-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2000-01-01' and "NavDate" < '2001-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2001-01-01' and "NavDate" < '2002-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2002-01-01' and "NavDate" < '2003-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2003-01-01' and "NavDate" < '2004-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2004-01-01' and "NavDate" < '2005-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2005-01-01' and "NavDate" < '2006-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2006-01-01' and "NavDate" < '2007-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2007-01-01' and "NavDate" < '2008-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2008-01-01' and "NavDate" < '2009-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2009-01-01' and "NavDate" < '2010-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2010-01-01' and "NavDate" < '2011-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2011-01-01' and "NavDate" < '2012-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2012-01-01' and "NavDate" < '2013-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2013-01-01' and "NavDate" < '2014-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2014-01-01' and "NavDate" < '2015-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2015-01-01' and "NavDate" < '2016-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2016-01-01' and "NavDate" < '2017-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2017-01-01' and "NavDate" < '2018-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2018-01-01' and "NavDate" < '2019-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2019-01-01' and "NavDate" < '2020-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2020-01-01' and "NavDate" < '2021-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2021-01-01' and "NavDate" < '2022-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2022-01-01' and "NavDate" < '2023-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2023-01-01' and "NavDate" < '2024-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2024-01-01' and "NavDate" < '2025-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2025-01-01' and "NavDate" < '2026-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2026-01-01' and "NavDate" < '2027-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2027-01-01' and "NavDate" < '2028-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2028-01-01' and "NavDate" < '2029-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2029-01-01' and "NavDate" < '2030-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2030-01-01' and "NavDate" < '2031-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2031-01-01' and "NavDate" < '2032-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2032-01-01' and "NavDate" < '2033-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2033-01-01' and "NavDate" < '2034-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2034-01-01' and "NavDate" < '2035-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2035-01-01' and "NavDate" < '2036-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2036-01-01' and "NavDate" < '2037-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2037-01-01' and "NavDate" < '2038-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2038-01-01' and "NavDate" < '2039-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2039-01-01' and "NavDate" < '2040-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2040-01-01' and "NavDate" < '2041-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
+        insert into "MF"."MF_NAV" ("MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime")
+        overriding system value
+        select "MFNavID", "SchemeCode", "SchemeName", "NavDate", "NAV", "NAVDateKey", "LoadDateTime"
+        from "MF"."MF_NAV_legacy_monthly"
+        where "NavDate" >= '2041-01-01'
+        on conflict on constraint "MF_NAV_pkey" do nothing;
+    end if;
+end $$;
+
+-- Realign the new table's identity sequence now that every chunk has run.
+do $$
+begin
+    if exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'MF' and c.relname = 'MF_NAV_legacy_monthly' and c.relkind = 'p'
+    ) then
         perform setval(
             pg_get_serial_sequence('"MF"."MF_NAV"', 'MFNavID'),
             greatest((select coalesce(max("MFNavID"), 0) from "MF"."MF_NAV"), 1)
