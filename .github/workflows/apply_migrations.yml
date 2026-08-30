@@ -61,6 +61,12 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # Session pooler, not the default transaction pooler (6543) -
+          # supabase db push/migration repair use prepared statements, which
+          # transaction-mode pooling doesn't reliably support across
+          # statements (observed: "prepared statement ... already exists",
+          # SQLSTATE 42P05, on prod).
+          SUPABASE_POSTGRE_PORT: "5432"
         run: |
           DB_URL=$(python scripts/print_db_url.py dev)
           echo "::add-mask::$DB_URL"
@@ -95,6 +101,12 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # Session pooler, not the default transaction pooler (6543) -
+          # supabase db push/migration repair use prepared statements, which
+          # transaction-mode pooling doesn't reliably support across
+          # statements (observed: "prepared statement ... already exists",
+          # SQLSTATE 42P05, on prod).
+          SUPABASE_POSTGRE_PORT: "5432"
         run: |
           DB_URL=$(python scripts/print_db_url.py prod)
           echo "::add-mask::$DB_URL"
@@ -155,6 +167,12 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # Session pooler, not the default transaction pooler (6543) -
+          # supabase db push/migration repair use prepared statements, which
+          # transaction-mode pooling doesn't reliably support across
+          # statements (observed: "prepared statement ... already exists",
+          # SQLSTATE 42P05, on prod).
+          SUPABASE_POSTGRE_PORT: "5432"
         run: |
           DB_URL=$(python scripts/print_db_url.py dev)
           echo "::add-mask::$DB_URL"
@@ -189,6 +207,12 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # Session pooler, not the default transaction pooler (6543) -
+          # supabase db push/migration repair use prepared statements, which
+          # transaction-mode pooling doesn't reliably support across
+          # statements (observed: "prepared statement ... already exists",
+          # SQLSTATE 42P05, on prod).
+          SUPABASE_POSTGRE_PORT: "5432"
         run: |
           DB_URL=$(python scripts/print_db_url.py prod)
           echo "::add-mask::$DB_URL"

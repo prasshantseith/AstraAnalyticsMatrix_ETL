@@ -15,6 +15,13 @@
 -- *this* table's constraints with the same "legacy_" prefix collided with
 -- that surviving index name (SQLSTATE 42P07). Use "legacy_monthly_"
 -- instead, which can't collide with it.
+--
+-- Also hit "prepared statement ... already exists" (SQLSTATE 42P05) on
+-- prod, unrelated to this migration's SQL - apply_migrations.yml was
+-- connecting through Supabase's transaction-mode pooler (port 6543),
+-- which doesn't reliably support the prepared statements supabase db push
+-- uses. Fixed by switching migrations to the session pooler (port 5432);
+-- see apply_migrations.yml.
 do $$
 declare
     r record;
