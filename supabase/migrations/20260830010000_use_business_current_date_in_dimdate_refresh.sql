@@ -2,8 +2,8 @@ CREATE OR REPLACE PROCEDURE "Report"."usp_RefreshDimDateFlags"(
     )
 LANGUAGE 'plpgsql'
 AS $BODY$
-  
-    
+
+
 DECLARE
     v_current_date DATE;
 BEGIN
