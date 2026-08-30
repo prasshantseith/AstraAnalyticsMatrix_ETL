@@ -7,6 +7,14 @@
 -- name, then copy every row back in, preserving MFNavID via
 -- OVERRIDING SYSTEM VALUE and realigning the new table's own identity
 -- sequence afterward.
+--
+-- Prod (unlike dev) still has an even older artifact from before this repo
+-- tracked migrations: "MF_NAV_legacy", the original pre-partition table,
+-- whose PK index was renamed to "legacy_MF_NAV_pkey" back in
+-- 20260822224430_create_mf_schema.sql and never cleaned up. Renaming
+-- *this* table's constraints with the same "legacy_" prefix collided with
+-- that surviving index name (SQLSTATE 42P07). Use "legacy_monthly_"
+-- instead, which can't collide with it.
 do $$
 declare
     r record;
@@ -24,8 +32,8 @@ begin
             from pg_constraint
             where conrelid = '"MF"."MF_NAV_legacy_monthly"'::regclass
         loop
-            if r.conname !~ '^legacy_' then
-                execute format('alter table "MF"."MF_NAV_legacy_monthly" rename constraint %I to %I', r.conname, 'legacy_' || r.conname);
+            if r.conname !~ '^legacy_monthly_' then
+                execute format('alter table "MF"."MF_NAV_legacy_monthly" rename constraint %I to %I', r.conname, 'legacy_monthly_' || r.conname);
             end if;
         end loop;
     end if;
