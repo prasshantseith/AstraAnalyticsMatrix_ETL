@@ -25,6 +25,16 @@ def main():
         required=True,
         help='Schema-qualified procedure name, e.g. "MF.usp_RefreshMFPerformance"',
     )
+    parser.add_argument(
+        "--statement-timeout-seconds",
+        type=int,
+        default=600,
+        dest="statement_timeout_seconds",
+        help="Overrides Postgres's statement_timeout for just this CALL (default: 600). "
+             "The connection role has a short default (observed: ~120s) meant for quick "
+             "pooled queries, too short for these analytical refresh procedures on "
+             "tables that keep growing.",
+    )
     args = parser.parse_args()
 
     schema, name = args.procedure.split(".", 1)
@@ -42,6 +52,16 @@ def main():
             conn.commit()
             return
 
+        # SET LOCAL scopes this to the current transaction only, so it
+        # can't leak into any later statement on this connection. SET
+        # doesn't accept bind parameters ("$1" isn't valid there), so the
+        # value is embedded as a safely-quoted SQL literal instead - safe
+        # here regardless, since argparse already guarantees it's an int.
+        cursor.execute(
+            sql.SQL("SET LOCAL statement_timeout = {}").format(
+                sql.Literal(f"{args.statement_timeout_seconds}s")
+            )
+        )
         cursor.execute(sql.SQL("CALL {}.{}()").format(sql.Identifier(schema), sql.Identifier(name)))
         conn.commit()
 
