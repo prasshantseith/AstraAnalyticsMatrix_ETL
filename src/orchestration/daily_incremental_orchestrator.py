@@ -42,6 +42,16 @@ def format_time_cell_html(dt):
 # (they recompute derived data) and Refresh Date Flags must run before
 # the two performance refreshes (both filter on Report.dimDate's
 # IsCurrent* flags, which only Refresh Date Flags sets for "today").
+#
+# All three use the session pooler (5432), not the default transaction
+# pooler (6543) - same root cause as the migrations fix in
+# apply_migrations.yml (82f03c8): these run heavy analytical queries that
+# can take well over a minute as the underlying tables grow, and the
+# transaction pooler enforces a short statement_timeout meant for quick
+# pooled queries (observed: Refresh Stock Performance killed by
+# "canceling statement due to statement timeout" at 126s).
+REFRESH_PROC_ENV = {"SUPABASE_POSTGRE_PORT": "5432"}
+
 PIPELINES = [
     {"name": "MF Ingestion", "script": "src/ingestion/mf_ingest.py"},
     {"name": "NSE Bhavcopy", "script": "src/ingestion/nse_bhavcopy_ingest.py"},
@@ -53,16 +63,19 @@ PIPELINES = [
         "name": "Refresh Date Flags",
         "script": "src/orchestration/call_procedure.py",
         "extra_args": ["--job-name", "refresh_dim_date_flags", "--procedure", "Report.usp_RefreshDimDateFlags"],
+        "extra_env": REFRESH_PROC_ENV,
     },
     {
         "name": "Refresh MF Performance",
         "script": "src/orchestration/call_procedure.py",
         "extra_args": ["--job-name", "refresh_mf_performance", "--procedure", "MF.usp_RefreshMFPerformance"],
+        "extra_env": REFRESH_PROC_ENV,
     },
     {
         "name": "Refresh Stock Performance",
         "script": "src/orchestration/call_procedure.py",
         "extra_args": ["--job-name", "refresh_stock_performance", "--procedure", "Stocks.usp_RefreshStockPerformance"],
+        "extra_env": REFRESH_PROC_ENV,
     },
 ]
 
@@ -73,6 +86,7 @@ ALERT_CC = ["support@astraanalyticsmatrix.com"]
 def run_pipeline(pipeline, environment):
     script_path = os.path.join(REPO_ROOT, pipeline["script"])
     extra_args = pipeline.get("extra_args", [])
+    env = {**os.environ, **pipeline.get("extra_env", {})}
     start = datetime.now(timezone.utc)
     print(f"[{start.isoformat()}] START {pipeline['name']} (environment={environment})", flush=True)
 
@@ -81,6 +95,7 @@ def run_pipeline(pipeline, environment):
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        env=env,
     )
 
     end = datetime.now(timezone.utc)

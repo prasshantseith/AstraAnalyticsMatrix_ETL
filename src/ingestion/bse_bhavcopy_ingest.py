@@ -149,6 +149,14 @@ def fetch_udiff_format(base_url, d):
         return None
 
     reader = csv.DictReader(io.StringIO(response.text))
+    if not reader.fieldnames or "FinInstrmTp" not in reader.fieldnames:
+        # HTTP 200 with a non-empty body that isn't actually the expected
+        # CSV - e.g. a placeholder/error page BSE serves for a date whose
+        # bhavcopy isn't published yet. Same class of gotcha as
+        # niftyindices.com's 200-status HTML page on non-trading days
+        # (see nse_index_daily_snapshot_backfill.py). Treat as "no data"
+        # rather than crashing per-row with a raw KeyError.
+        return None
     rows = []
     for row in reader:
         if row["FinInstrmTp"].strip() != "STK":
