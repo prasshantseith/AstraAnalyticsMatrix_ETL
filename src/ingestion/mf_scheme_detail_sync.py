@@ -258,6 +258,44 @@ def upsert_peer_performance(cursor, target_schema, mfid, comparison, external_co
 
 
 # -----------------------------
+# 6b. Connection resilience — this job runs for 1.5-2+ hours against
+#     Supabase's pooler, and a run that gets 92% through before the
+#     connection gets recycled out from under it (observed 2026-08-31:
+#     psycopg2.InterfaceError at fund 8035/8683, ~2h in) should not lose
+#     that progress. rollback()/close() on an already-dead connection also
+#     raise, so those need to be best-effort too rather than assumed safe.
+# -----------------------------
+def safe_rollback(conn):
+    try:
+        conn.rollback()
+    except Exception:
+        pass
+
+
+def safe_close(conn_or_cursor):
+    try:
+        conn_or_cursor.close()
+    except Exception:
+        pass
+
+
+def is_connection_error(exc):
+    return isinstance(exc, (psycopg2.InterfaceError, psycopg2.OperationalError))
+
+
+def reconnect_with_retries(environment, max_attempts=5):
+    for attempt in range(1, max_attempts + 1):
+        try:
+            conn = connect_to_postgres(environment)
+            return conn, conn.cursor()
+        except Exception as exc:
+            print(f"Reconnect attempt {attempt}/{max_attempts} failed: {exc}")
+            if attempt == max_attempts:
+                raise
+            time.sleep(min(30, 2 ** attempt))
+
+
+# -----------------------------
 # 7. Main
 # -----------------------------
 def main():
@@ -343,7 +381,8 @@ def main():
                     total_peer_rows += peer_rows
                     print(f"[{i}/{len(funds)}] MFID {mfid}: updated, {peer_rows} peer rows")
             except Exception as exc:
-                conn.rollback()
+                connection_lost = is_connection_error(exc)
+                safe_rollback(conn)
                 failed_funds.append(mfid)
                 print(f"[{i}/{len(funds)}] MFID {mfid} FAILED: {exc}")
                 if detail is not None:
@@ -351,6 +390,17 @@ def main():
                         print(f"[{i}/{len(funds)}] MFID {mfid} FAILED payload: {transform_detail(detail)}")
                     except Exception as transform_exc:
                         print(f"[{i}/{len(funds)}] MFID {mfid} FAILED payload unavailable: {transform_exc}")
+
+                # This fund's write didn't commit, so it's already counted
+                # as failed above and will be picked up again by next run's
+                # "oldest detail_modifieddate first" ordering — reconnecting
+                # here is purely about not losing the rest of the run.
+                if connection_lost:
+                    print(f"[{i}/{len(funds)}] Connection lost, reconnecting...")
+                    safe_close(cursor)
+                    safe_close(conn)
+                    conn, cursor = reconnect_with_retries(args.environment)
+                    print(f"[{i}/{len(funds)}] Reconnected, resuming.")
 
             if args.sleep_seconds:
                 time.sleep(args.sleep_seconds)
@@ -383,15 +433,19 @@ def main():
         print(f"Sync completed. Funds updated: {total_updated}. Peer rows: {total_peer_rows}. "
               f"Skipped: {len(skipped_funds)}. Failed: {len(failed_funds)}.")
     except Exception as exc:
-        conn.rollback()
+        safe_rollback(conn)
+        if is_connection_error(exc):
+            safe_close(cursor)
+            safe_close(conn)
+            conn, cursor = reconnect_with_retries(args.environment)
         set_job_status(cursor, JOB_NAME, "failed")
         if log_id is not None:
             log_run_end(cursor, log_id, "failed", error_message=str(exc))
         conn.commit()
         raise
     finally:
-        cursor.close()
-        conn.close()
+        safe_close(cursor)
+        safe_close(conn)
 
 
 if __name__ == "__main__":
