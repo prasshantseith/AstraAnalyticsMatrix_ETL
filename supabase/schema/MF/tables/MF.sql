@@ -2,7 +2,7 @@ create table "MF"."MF"
 (
     "MFID" integer NOT NULL GENERATED ALWAYS AS IDENTITY,
     "SchemeCode" bigint,
-    "SchemeName" character varying(1000),
+    "SchemeName" character varying(3000),
     "LoadDateTime" timestamp with time zone DEFAULT now(),
     "isinGrowth" character varying,
     "isinDivPayout" character varying,

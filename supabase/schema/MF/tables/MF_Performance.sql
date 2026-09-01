@@ -1,7 +1,7 @@
 create table "MF"."MF_Performance"
 (
     "MFCode" bigint NOT NULL,
-    "MFName" character varying(1000) COLLATE pg_catalog."default",
+    "MFName" character varying(3000) COLLATE pg_catalog."default",
     "LatestNAV" numeric(10,4),
     "AsOfDate" date,
     "Day" numeric(10,2),

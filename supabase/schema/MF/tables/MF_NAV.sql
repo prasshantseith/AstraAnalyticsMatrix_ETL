@@ -2,7 +2,7 @@ create table "MF"."MF_NAV"
 (
     "MFNavID" integer NOT NULL GENERATED ALWAYS AS IDENTITY,
     "SchemeCode" bigint,
-    "SchemeName" character varying(1000),
+    "SchemeName" character varying(3000),
     "NavDate" date NOT NULL,
     "NAV" numeric(18,4),
     "NAVDateKey" integer,
