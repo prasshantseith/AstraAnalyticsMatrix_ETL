@@ -24,34 +24,40 @@ def connect_to_postgres(environment):
 
 
 # -----------------------------
-# 3. Fetch MFAPI Data
+# 3. Fetch AMFI NAV File
 # -----------------------------
-def fetch_mf_latest(source_url):
-    response = requests.get(source_url, timeout=30)
+def fetch_amfi_nav_file(source_url):
+    response = requests.get(source_url, timeout=60)
 
     if response.status_code != 200:
-        raise Exception(f"MFAPI failed: {response.status_code}")
+        raise Exception(f"AMFI NAV file fetch failed: {response.status_code}")
 
-    return response.json()
+    return response.text
 
 
 # -----------------------------
-# 4. Transform MFAPI Rows
+# 4. Transform AMFI Rows
 # -----------------------------
-def transform_rows(data):
+def transform_rows(text):
     rows = []
 
-    for item in data:
-        scheme_code = item.get("schemeCode")
-        scheme_name = item.get("schemeName")
-        nav = item.get("nav")
-        nav_date = item.get("date")
+    for line in text.splitlines():
+        line = line.strip()
 
-        if nav is None or nav_date is None:
+        if not line:
             continue
 
+        fields = [field.strip() for field in line.split(";")]
+
+        if len(fields) != 8 or not fields[0].isdigit():
+            # Category headers, AMC headers, and the header row itself all
+            # fail one of these checks and are skipped.
+            continue
+
+        scheme_code, _isin_payout_growth, _isin_div_reinvestment, scheme_name, _plan, _option, nav, nav_date = fields
+
         try:
-            nav_date_pg = datetime.strptime(nav_date, "%d-%m-%Y").date()
+            nav_date_pg = datetime.strptime(nav_date, "%d-%b-%Y").date()
         except ValueError:
             continue
 
@@ -63,7 +69,7 @@ def transform_rows(data):
         nav_date_key = int(nav_date_pg.strftime("%Y%m%d"))
 
         rows.append((
-            scheme_code,
+            int(scheme_code),
             scheme_name,
             nav_date_pg,
             nav_numeric,
@@ -119,14 +125,12 @@ def main():
             conn.commit()
             return
 
-        print("Fetching MFAPI latest NAV data...")
-        data = fetch_mf_latest(config["source_url"])
+        print("Fetching AMFI NAV file...")
+        text = fetch_amfi_nav_file(config["source_url"])
 
-        print(f"Records received: {len(data)}")
+        rows = transform_rows(text)
 
-        rows = transform_rows(data)
-
-        print(f"Rows prepared for insert: {len(rows)}")
+        print(f"Rows parsed: {len(rows)}")
 
         rows_updated = insert_into_postgres(cursor, config["target_schema"], config["target_table"], rows)
         watermark_value = max((row[2] for row in rows), default=None)
