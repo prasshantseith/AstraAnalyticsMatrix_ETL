@@ -45,17 +45,13 @@ def connect_to_postgres(environment):
 
 
 # -----------------------------
-# 2. Currently-active EQ symbols (filters every day's bhavcopy)
+# 2. Currently-active symbols, any series (filters every day's bhavcopy)
 # -----------------------------
-def fetch_active_eq_symbols():
+def fetch_active_symbols():
     response = requests.get(NSE_SYMBOL_LIST_URL, headers=REQUEST_HEADERS, timeout=30)
     response.raise_for_status()
     reader = csv.DictReader(io.StringIO(response.text))
-    return {
-        row["Symbol"].strip()
-        for row in reader
-        if row.get("Series", "").strip() == "EQ"
-    }
+    return {row["Symbol"].strip() for row in reader}
 
 
 # -----------------------------
@@ -139,7 +135,7 @@ def fetch_bhavcopy(base_url, d):
 
 
 # -----------------------------
-# 5. Filter to active EQ + map to Stocks.StockData columns
+# 5. Filter to active symbols (any series) + map to Stocks.StockData columns
 # -----------------------------
 def safe_numeric(value):
     if value is None or value == "":
@@ -161,7 +157,7 @@ def instrument_id_for_isin(isin):
 def transform_rows(d, raw_rows, active_symbols):
     rows = []
     for row in raw_rows:
-        if row["series"] != "EQ" or row["symbol"] not in active_symbols:
+        if row["symbol"] not in active_symbols:
             continue
 
         isin = row["isin"]
@@ -301,9 +297,9 @@ def main():
 
         print(f"Trade days to sync: {len(days)} ({start_date} to {end_date})")
 
-        print("Fetching current active EQ symbol list...")
-        active_symbols = fetch_active_eq_symbols()
-        print(f"Active EQ symbols: {len(active_symbols)}")
+        print("Fetching current active symbol list...")
+        active_symbols = fetch_active_symbols()
+        print(f"Active symbols: {len(active_symbols)}")
 
         total_rows = 0
         last_loaded_date = None
@@ -320,7 +316,7 @@ def main():
                     rows = transform_rows(d, raw_rows, active_symbols)
                     if not rows:
                         skipped_days.append(d)
-                        print(f"[{i}/{len(days)}] {d}: no active EQ matches, skipped")
+                        print(f"[{i}/{len(days)}] {d}: no active symbol matches, skipped")
                     else:
                         rows_upserted = upsert_stock_data(cursor, config["target_schema"], config["target_table"], rows)
                         conn.commit()
