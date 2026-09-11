@@ -222,6 +222,26 @@ def transform_rows(d, raw_rows, scrip_master):
     return rows
 
 
+_INSTRUMENT_ID_IDX = 6  # sc_code, unlike NSE's ISIN-derived hash
+
+
+def dedupe_by_instrument_id(rows):
+    """Defensive counterpart to nse_bhavcopy_ingest's dedupe of the same
+    name: InstrumentId here is BSE's own stable per-listing sc_code (not a
+    hash of a non-unique field), so this shouldn't be reachable the way
+    NSE's ISIN collisions are - but a raw day's file repeating a sc_code
+    would produce the exact same ON CONFLICT-abort-the-whole-day failure
+    NSE hit, for the cost of one dict pass. All fields for a given sc_code
+    come from the same scrip_master entry regardless of how many times it
+    appears in the file, so there's no "which one matters more" tie-break
+    to make - first seen is as good as any.
+    """
+    seen: dict[int, tuple] = {}
+    for row in rows:
+        seen.setdefault(row[_INSTRUMENT_ID_IDX], row)
+    return list(seen.values())
+
+
 # -----------------------------
 # 6. Upsert into Stocks.StockData
 # -----------------------------
@@ -349,7 +369,7 @@ def main():
                     skipped_days.append(d)
                     print(f"[{i}/{len(days)}] {d}: no data (holiday or not yet published), skipped")
                 else:
-                    rows = transform_rows(d, raw_rows, scrip_master)
+                    rows = dedupe_by_instrument_id(transform_rows(d, raw_rows, scrip_master))
                     if not rows:
                         skipped_days.append(d)
                         print(f"[{i}/{len(days)}] {d}: no active equity matches, skipped")
