@@ -149,8 +149,15 @@ def safe_numeric(value):
 def instrument_id_for_isin(isin):
     # No numeric instrument ID exists for cash equities in the bhavcopy feed,
     # and there's no Stocks dimension table to look one up from - derive a
-    # stable id straight from the ISIN instead. CRC32 collisions are
-    # negligible at NSE's EQ universe size (~2000 symbols).
+    # stable id straight from the ISIN instead. CRC32 collisions between two
+    # genuinely different ISINs are negligible at NSE's EQ universe size
+    # (~2000 symbols) - but a single ISIN legitimately maps to more than one
+    # symbol/series on plenty of days (partly-paid shares, rights
+    # entitlements, series-reclassification transition days), which collides
+    # on purpose here since it's the same underlying security. See
+    # dedupe_by_instrument_id below for why that's handled after this, not
+    # by changing this function - changing what feeds the hash would silently
+    # re-key every already-loaded row's InstrumentId.
     return zlib.crc32(isin.encode("utf-8"))
 
 
@@ -184,6 +191,40 @@ def transform_rows(d, raw_rows, active_symbols):
             safe_numeric(row["prevclose"]),
         ))
     return rows
+
+
+# Index of each tuple field transform_rows produces above, named just for
+# dedupe_by_instrument_id below rather than unpacking every field.
+_INSTRUMENT_ID_IDX = 6
+_SERIES_IDX = 9
+
+
+def dedupe_by_instrument_id(rows):
+    """Two rows sharing one ISIN (see instrument_id_for_isin) hash to the same
+    InstrumentId, and Postgres's ON CONFLICT DO UPDATE can't touch the same
+    conflict target twice in one statement - observed in production as the
+    *entire day's* upsert aborting (not just the duplicate row) with "ON
+    CONFLICT DO UPDATE command cannot affect row a second time", on ~48% of
+    days across a 2010-2026 backfill (evenly spread across every year, so
+    this is an ordinary, ongoing occurrence, not a data-era quirk - meaning
+    the regular daily incremental job was silently losing any day that hit
+    it too).
+
+    Keeps one row per InstrumentId - the 'EQ' series if one of the clashing
+    rows is EQ (equities are what the app is actually built around; the
+    frontend's own security-series filter defaults to 'EQ'), else whichever
+    was seen first. This does mean the non-EQ row (partly-paid/rights/etc)
+    for that specific ISIN on that specific day isn't stored - an accepted,
+    minor loss against the alternative of losing the *entire* day, EQ rows
+    included, which is what happens without this.
+    """
+    best: dict[int, tuple] = {}
+    for row in rows:
+        instrument_id = row[_INSTRUMENT_ID_IDX]
+        existing = best.get(instrument_id)
+        if existing is None or (row[_SERIES_IDX] == "EQ" and existing[_SERIES_IDX] != "EQ"):
+            best[instrument_id] = row
+    return list(best.values())
 
 
 # -----------------------------
@@ -313,7 +354,7 @@ def main():
                     skipped_days.append(d)
                     print(f"[{i}/{len(days)}] {d}: no data (holiday or not yet published), skipped")
                 else:
-                    rows = transform_rows(d, raw_rows, active_symbols)
+                    rows = dedupe_by_instrument_id(transform_rows(d, raw_rows, active_symbols))
                     if not rows:
                         skipped_days.append(d)
                         print(f"[{i}/{len(days)}] {d}: no active symbol matches, skipped")
