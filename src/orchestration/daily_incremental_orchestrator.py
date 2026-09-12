@@ -54,6 +54,16 @@ REFRESH_PROC_ENV = {"SUPABASE_POSTGRE_PORT": "5432"}
 
 PIPELINES = [
     {"name": "MF Ingestion", "script": "src/ingestion/mf_ingest.py"},
+    # mf_ingest.py above inserts one NAV row/day for every scheme AMFI reports,
+    # including ones never seen before — it never fetches a scheme's earlier
+    # history. This is the only thing that does, run with --missing-history-only
+    # so it stays cheap day to day (only re-fetches schemes still short on NAV
+    # rows) instead of re-pulling full history for every active scheme daily.
+    {
+        "name": "MF NAV Backfill (missing history)",
+        "script": "src/ingestion/mf_nav_backfill.py",
+        "extra_args": ["--missing-history-only"],
+    },
     {"name": "NSE Bhavcopy", "script": "src/ingestion/nse_bhavcopy_ingest.py"},
     {"name": "BSE Bhavcopy", "script": "src/ingestion/bse_bhavcopy_ingest.py"},
     {"name": "NSE Index Daily Snapshot", "script": "src/ingestion/nse_index_daily_snapshot_ingest.py"},
