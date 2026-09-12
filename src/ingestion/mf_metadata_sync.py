@@ -69,9 +69,23 @@ def parse_amfi_rows(text):
         isin_growth = isin_payout_growth if is_growth else None
         isin_div_payout = None if is_growth else isin_payout_growth
 
+        # AMFI's own "Scheme Name" column is the bare fund name shared by
+        # every one of its Plan/Option variants (e.g. every one of "HDFC Mid
+        # Cap Fund"'s 4 scheme codes — Direct/Regular x Growth/IDCW — reports
+        # the identical "HDFC Mid Cap Fund"); Plan and Option are separate
+        # columns that actually distinguish them. Discarding those two here
+        # (as this did previously) meant MF.MF stored 4 identical-looking
+        # rows for 4 genuinely different NAV series, indistinguishable in
+        # the app's scheme-matching dropdown and in match_scheme's own
+        # plan/payout disambiguation (which classifies off of SchemeName's
+        # tokens — nothing to classify if the qualifier was never stored).
+        full_scheme_name = " - ".join(
+            part for part in (scheme_name, plan, option) if part and part != "-"
+        )
+
         rows.append((
             int(scheme_code),
-            scheme_name,
+            full_scheme_name,
             isin_growth,
             isin_div_payout,
             isin_div_reinvestment,

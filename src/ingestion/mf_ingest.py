@@ -54,7 +54,7 @@ def transform_rows(text):
             # fail one of these checks and are skipped.
             continue
 
-        scheme_code, _isin_payout_growth, _isin_div_reinvestment, scheme_name, _plan, _option, nav, nav_date = fields
+        scheme_code, _isin_payout_growth, _isin_div_reinvestment, scheme_name, plan, option, nav, nav_date = fields
 
         try:
             nav_date_pg = datetime.strptime(nav_date, "%d-%b-%Y").date()
@@ -68,9 +68,17 @@ def transform_rows(text):
 
         nav_date_key = int(nav_date_pg.strftime("%Y%m%d"))
 
+        # Same Plan/Option qualifier mf_metadata_sync.py now folds into
+        # MF.MF.SchemeName — kept in sync here too so MF_NAV's own SchemeName
+        # (denormalized, not used by scheme matching) doesn't silently
+        # disagree with MF.MF's for the same SchemeCode.
+        full_scheme_name = " - ".join(
+            part for part in (scheme_name, plan, option) if part and part != "-"
+        )
+
         rows.append((
             int(scheme_code),
-            scheme_name,
+            full_scheme_name,
             nav_date_pg,
             nav_numeric,
             nav_date_key
