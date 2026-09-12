@@ -42,6 +42,47 @@ def fetch_active_scheme_codes(cursor, after_scheme_code=None):
     return [row[0] for row in cursor.fetchall()]
 
 
+# mf_ingest.py (the daily job) inserts one NAV row per day for every scheme
+# AMFI's feed reports, including ones it's never seen before — it doesn't
+# distinguish "brand new fund" from "existing fund we just haven't backfilled
+# yet". This script is the only thing that ever fetches a scheme's *full*
+# history, but historically only ran once, manually, against whatever was in
+# MF.MF at the time — so anything added afterward (loud example: several
+# BANDHAN schemes, discovered while investigating a stuck MF import that
+# needed a July NAV a fund's only-since-July history didn't have) just
+# accumulates forward from whenever the daily job first noticed it, with its
+# real earlier history never backfilled. --missing-history-only below finds
+# and re-backfills those.
+#
+# The row-count threshold can't distinguish "never backfilled" from
+# "genuinely launched recently" (no inception-date data available for that),
+# but that's fine: re-running the full-history fetch against a young fund is
+# harmless and idempotent (ON CONFLICT DO NOTHING), it just does a little
+# redundant work. A properly backfilled scheme has years of daily rows and
+# will never come within range of this threshold, so this converges to
+# near-zero extra work once the current backfill gap is caught up.
+_MISSING_HISTORY_ROW_THRESHOLD = 400
+
+
+def fetch_schemes_missing_history(cursor, row_threshold=_MISSING_HISTORY_ROW_THRESHOLD):
+    cursor.execute(
+        """
+        SELECT m."SchemeCode"
+        FROM "MF"."MF" m
+        LEFT JOIN (
+            SELECT "SchemeCode", COUNT(*) AS cnt
+            FROM "MF"."MF_NAV"
+            GROUP BY "SchemeCode"
+        ) nav ON nav."SchemeCode" = m."SchemeCode"
+        WHERE m."IsActive" = true AND m."SchemeCode" IS NOT NULL
+          AND (nav."SchemeCode" IS NULL OR nav.cnt < %s)
+        ORDER BY m."SchemeCode"
+        """,
+        (row_threshold,),
+    )
+    return [row[0] for row in cursor.fetchall()]
+
+
 # -----------------------------
 # 3. Fetch full NAV history for one scheme
 # -----------------------------
@@ -147,6 +188,14 @@ def main():
         default=None,
         help="Resume the MF.MF lookup after this scheme code (e.g. to continue a run cut off by the job timeout)",
     )
+    parser.add_argument(
+        "--missing-history-only",
+        action="store_true",
+        help="Only backfill active schemes with fewer than %d NAV rows, instead of every active scheme — "
+        "see fetch_schemes_missing_history's docstring. Meant for a recurring (e.g. daily) orchestrator "
+        "step that catches schemes mf_ingest.py started tracking without ever getting a full backfill."
+        % _MISSING_HISTORY_ROW_THRESHOLD,
+    )
     args = parser.parse_args()
 
     conn = connect_to_postgres(args.environment)
@@ -171,6 +220,10 @@ def main():
             scheme_codes = [int(code.strip()) for code in args.scheme_codes.split(",") if code.strip()]
         elif args.scheme_code is not None:
             scheme_codes = [args.scheme_code]
+        elif args.missing_history_only:
+            scheme_codes = fetch_schemes_missing_history(cursor)
+            if args.limit is not None:
+                scheme_codes = scheme_codes[:args.limit]
         else:
             scheme_codes = fetch_active_scheme_codes(cursor, args.resume_after_scheme_code)
             if args.limit is not None:
