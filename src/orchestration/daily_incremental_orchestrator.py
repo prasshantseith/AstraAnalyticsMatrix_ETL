@@ -43,9 +43,9 @@ def format_time_cell_html(dt):
 # the two performance refreshes (both filter on Report.dimDate's
 # IsCurrent* flags, which only Refresh Date Flags sets for "today").
 #
-# All three use the session pooler (5432), not the default transaction
-# pooler (6543) - same root cause as the migrations fix in
-# apply_migrations.yml (82f03c8): these run heavy analytical queries that
+# All refresh procedures below use the session pooler (5432), not the
+# default transaction pooler (6543) - same root cause as the migrations fix
+# in apply_migrations.yml (82f03c8): these run heavy analytical queries that
 # can take well over a minute as the underlying tables grow, and the
 # transaction pooler enforces a short statement_timeout meant for quick
 # pooled queries (observed: Refresh Stock Performance killed by
@@ -75,6 +75,18 @@ PIPELINES = [
         "name": "Refresh Stock Performance",
         "script": "src/orchestration/call_procedure.py",
         "extra_args": ["--job-name", "refresh_stock_performance", "--procedure", "Stocks.usp_RefreshStockPerformance"],
+        "extra_env": REFRESH_PROC_ENV,
+    },
+    {
+        "name": "Refresh Index Performance",
+        "script": "src/orchestration/call_procedure.py",
+        "extra_args": ["--job-name", "refresh_index_performance", "--procedure", "Indices.usp_RefreshIndexPerformance"],
+        "extra_env": REFRESH_PROC_ENV,
+    },
+    {
+        "name": "Refresh Commodity Performance",
+        "script": "src/orchestration/call_procedure.py",
+        "extra_args": ["--job-name", "refresh_commodity_performance", "--procedure", "Commodities.usp_RefreshCommodityPerformance"],
         "extra_env": REFRESH_PROC_ENV,
     },
 ]
