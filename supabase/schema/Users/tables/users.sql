@@ -18,6 +18,9 @@ create table "Users".users
     billing_postal_code character varying COLLATE pg_catalog."default",
     billing_country character varying COLLATE pg_catalog."default",
     language character varying COLLATE pg_catalog."default" NOT NULL DEFAULT 'English'::character varying,
+    is_locked boolean NOT NULL DEFAULT false,
+    locked_at timestamp with time zone,
+    locked_reason character varying COLLATE pg_catalog."default",
     CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 
