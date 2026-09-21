@@ -4,6 +4,8 @@ create table "Users"."UserSubscriptions"
     userid bigint NOT NULL,
     tier character varying(10) COLLATE pg_catalog."default" NOT NULL DEFAULT 'free'::character varying,
     extra_panchang_tokens integer NOT NULL DEFAULT 0,
+    auto_renew boolean NOT NULL DEFAULT true,
+    current_period_end timestamp with time zone,
     rowinsertdatetime timestamp with time zone NOT NULL DEFAULT (now() AT TIME ZONE 'utc'::text),
     modifieddate timestamp with time zone NOT NULL DEFAULT (now() AT TIME ZONE 'utc'::text),
     CONSTRAINT "UserSubscriptions_pkey" PRIMARY KEY (subscriptionid),
