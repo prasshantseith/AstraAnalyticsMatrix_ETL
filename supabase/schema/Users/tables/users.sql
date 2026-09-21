@@ -5,6 +5,7 @@ create table "Users".users
     created_at timestamp with time zone DEFAULT now(),
     name character varying COLLATE pg_catalog."default",
     is_admin boolean NOT NULL DEFAULT false,
+    is_approved boolean NOT NULL DEFAULT true,
     first_name character varying COLLATE pg_catalog."default",
     last_name character varying COLLATE pg_catalog."default",
     date_of_birth date,
