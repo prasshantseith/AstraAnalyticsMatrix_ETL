@@ -1,4 +1,6 @@
 import argparse
+import csv
+import io
 import os
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -20,6 +22,25 @@ REQUEST_HEADERS = {
     "Origin": "https://www.bseindia.com",
     "Referer": "https://www.bseindia.com/",
 }
+# api.bseindia.com's IndexArchDailyAll JSON API (config["source_url"]'s
+# original target) started 403ing every non-browser client on 2026-09-23 -
+# BSE's Akamai WAF fingerprints the TLS/HTTP client itself (confirmed: it
+# still works as a same-page fetch() from a real loaded bseindia.com tab,
+# and rejects the identical request - same headers included - from plain
+# requests/curl). This static per-day CSV lives on the plain www host and
+# isn't behind that block. Hardcoded here rather than read from
+# config["source_url"] since it's a different host/format entirely, not a
+# same-shape endpoint swap (matches bse_bhavcopy_ingest.py's
+# SCRIP_MASTER_URL, which is likewise hardcoded separately from
+# config["source_url"]).
+#
+# Trade-off: this file has no Volume/Turnover columns (the JSON API did).
+# Both were already Optional/nullable end-to-end (AstraanAlyticsMatrixAPI's
+# schemas.py: turnover_cr: Optional[Decimal]) and unused by any frontend
+# page (grepped the web repo - only ever referenced in type definitions,
+# never rendered), so they now just stay NULL for BSE going forward instead
+# of populated. OHLC (what's actually charted) is unaffected.
+INDEX_SUMMARY_URL = "https://www.bseindia.com/bsedata/Index_Bhavcopy/INDEXSummary_{ddmmyyyy}.csv"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -36,40 +57,39 @@ def parse_number(value):
         return None
 
 
-def parse_volume(value):
-    number = parse_number(value)
-    return int(number) if number is not None else None
-
-
-def fetch_snapshot(source_url, snapshot_date):
-    date_str = snapshot_date.strftime("%d/%m/%Y")
-    response = requests.get(
-        f"{source_url.rstrip('/')}/IndexArchDailyAll/w",
-        params={"fmdt": date_str, "todt": date_str, "index": "All", "period": "D"},
-        headers=REQUEST_HEADERS,
-        timeout=60,
-    )
-    response.raise_for_status()
-    return response.json()
+def fetch_snapshot(snapshot_date):
+    url = INDEX_SUMMARY_URL.format(ddmmyyyy=snapshot_date.strftime("%d%m%Y"))
+    response = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
+    if response.status_code != 200 or not response.text.strip():
+        return None
+    reader = csv.DictReader(io.StringIO(response.text))
+    if not reader.fieldnames or "IndexName" not in reader.fieldnames:
+        # Same "200 with a placeholder page instead of a 404" gotcha as
+        # bse_bhavcopy_ingest's fetch_udiff_format - BSE doesn't publish
+        # this file for non-trading days.
+        return None
+    return list(reader)
 
 
 def parse_snapshot(payload, snapshot_date):
+    if payload is None:
+        return []
     rows_by_name = {}
-    for item in (payload.get("Table") or []):
-        index_name = (item.get("I_name") or "").strip()
+    for item in payload:
+        index_name = (item.get("IndexName") or "").strip()
         if not index_name:
             continue
         # Same "last write wins" dedupe as nse_index_daily_snapshot_ingest,
-        # in case an index appears more than once in one day's response.
+        # in case an index appears more than once in one day's file.
         rows_by_name[index_name] = (
             index_name,
             snapshot_date,
-            parse_number(item.get("I_open")),
-            parse_number(item.get("I_high")),
-            parse_number(item.get("I_low")),
-            parse_number(item.get("I_close")),
-            parse_volume(item.get("Volume")),
-            parse_number(item.get("Turnover")),
+            parse_number(item.get("OpenPrice")),
+            parse_number(item.get("HighPrice")),
+            parse_number(item.get("LowPrice")),
+            parse_number(item.get("ClosePrice")),
+            None,  # Volume - not in this file, see INDEX_SUMMARY_URL's comment
+            None,  # Turnover - likewise
         )
     return list(rows_by_name.values())
 
@@ -121,9 +141,9 @@ def main():
             conn.commit()
             return
 
-        payload = fetch_snapshot(config["source_url"], args.snapshot_date)
+        payload = fetch_snapshot(args.snapshot_date)
         rows = parse_snapshot(payload, args.snapshot_date)
-        source_ref = f"IndexArchDailyAll fmdt={args.snapshot_date}"
+        source_ref = f"INDEXSummary {args.snapshot_date.strftime('%d%m%Y')}.csv"
         rows_updated = upsert_rows(
             cursor, config["target_schema"], config["target_table"], rows, source_ref
         ) if rows else 0

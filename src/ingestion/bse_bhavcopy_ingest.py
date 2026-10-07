@@ -173,6 +173,14 @@ def fetch_udiff_format(base_url, d):
             "close": row["ClsPric"],
             "last": row["LastPric"],
             "prevclose": row["PrvsClsgPric"],
+            # The UDiFF file already carries full identity fields per row -
+            # unlike the pre-cutover format, it needs no join against
+            # fetch_active_scrip_master() at all (see transform_rows, which
+            # prefers these over a scrip_master lookup whenever present).
+            "isin": row.get("ISIN", "").strip(),
+            "symbol": row.get("TckrSymb", "").strip(),
+            "group": row.get("SctySrs", "").strip(),
+            "name": row.get("FinInstrmNm", "").strip(),
         })
     return rows
 
@@ -196,7 +204,16 @@ def safe_numeric(value):
 def transform_rows(d, raw_rows, scrip_master):
     rows = []
     for row in raw_rows:
-        scrip = scrip_master.get(row["sc_code"])
+        # UDiFF rows (fetch_udiff_format) carry their own isin/symbol/group/
+        # name already - prefer those over scrip_master, which is only
+        # fetched at all for a pre-UDIFF_CUTOVER backfill (see main()) and
+        # would otherwise make every current/incremental run depend on an
+        # endpoint (fetch_active_scrip_master's SCRIP_MASTER_URL) that BSE's
+        # Akamai WAF now blocks for non-browser clients.
+        if row.get("isin"):
+            scrip = {"isin": row["isin"], "symbol": row["symbol"], "group": row["group"], "name": row["name"]}
+        else:
+            scrip = scrip_master.get(row["sc_code"]) if scrip_master else None
         if scrip is None:
             continue
 
@@ -353,9 +370,19 @@ def main():
 
         print(f"Trade days to sync: {len(days)} ({start_date} to {end_date})")
 
-        print("Fetching active equity scrip master...")
-        scrip_master = fetch_active_scrip_master()
-        print(f"Active equity scrips: {len(scrip_master)}")
+        # Only pre-UDIFF_CUTOVER days (fetch_old_format) actually need this -
+        # the UDiFF file itself carries identity fields per row (see
+        # fetch_udiff_format/transform_rows). Skipping it for an all-UDiFF
+        # range (every normal incremental run) means today's ingest no
+        # longer depends on SCRIP_MASTER_URL at all, which BSE's Akamai WAF
+        # currently 403s for non-browser clients regardless of headers - see
+        # the 2026-09-23 BSE Bhavcopy/BSE Index outage. A backfill spanning
+        # older dates still needs it and still fails loudly if it's down.
+        scrip_master = {}
+        if days and days[0] < UDIFF_CUTOVER:
+            print("Fetching active equity scrip master (range includes pre-UDiFF dates)...")
+            scrip_master = fetch_active_scrip_master()
+            print(f"Active equity scrips: {len(scrip_master)}")
 
         total_rows = 0
         last_loaded_date = None
