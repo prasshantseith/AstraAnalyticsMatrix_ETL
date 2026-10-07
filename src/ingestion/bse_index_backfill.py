@@ -74,7 +74,7 @@ def main():
                 continue
 
             try:
-                payload = fetch_snapshot(config["source_url"], snapshot_date)
+                payload = fetch_snapshot(snapshot_date)
                 rows = parse_snapshot(payload, snapshot_date)
             except Exception as exc:
                 conn.rollback()
@@ -89,7 +89,7 @@ def main():
                 # means a public holiday or a date before this index existed.
                 no_data_dates.append(snapshot_date)
             else:
-                source_ref = f"IndexArchDailyAll fmdt={snapshot_date}"
+                source_ref = f"INDEXSummary {snapshot_date.strftime('%d%m%Y')}.csv"
                 rows_updated = upsert_rows(
                     cursor, config["target_schema"], config["target_table"], rows, source_ref
                 )
