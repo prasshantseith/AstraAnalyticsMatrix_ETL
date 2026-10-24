@@ -119,6 +119,31 @@ def transform_rows(raw_rows):
     return rows
 
 
+# Index of each tuple field transform_rows produces above, named just for
+# dedupe_rows below rather than unpacking every field.
+_KEY_IDX = (0, 1, 2, 3, 4, 5)  # TradeDate, Commodity, InstrumentType, ExpiryDate, OptionType, StrikePrice
+_VOLUME_IDX = 11
+
+
+def dedupe_rows(rows):
+    """Observed in production (2004-10-26): MCX's own feed occasionally
+    returns two rows for the exact same contract (same TradeDate, Commodity,
+    InstrumentType, ExpiryDate, OptionType, StrikePrice) on one day - and
+    Postgres's ON CONFLICT DO UPDATE can't touch the same conflict target
+    twice in one statement, which aborted that entire day's upsert (not just
+    the duplicate row). Keeps whichever copy has the higher Volume (the more
+    "real" of the two on a day with an otherwise-identical duplicate), or
+    whichever was seen first on a tie.
+    """
+    best: dict[tuple, tuple] = {}
+    for row in rows:
+        key = tuple(row[i] for i in _KEY_IDX)
+        existing = best.get(key)
+        if existing is None or (row[_VOLUME_IDX] or 0) > (existing[_VOLUME_IDX] or 0):
+            best[key] = row
+    return list(best.values())
+
+
 def upsert_bhavcopy(cursor, target_schema, target_table, rows):
     upsert_sql = sql.SQL(
         """
@@ -247,7 +272,7 @@ def main():
                             skipped_days.append(d)
                             print(f"[{i}/{len(days)}] {d}: no data (non-trading day or not yet published), skipped")
                         else:
-                            rows = transform_rows(raw_rows)
+                            rows = dedupe_rows(transform_rows(raw_rows))
                             rows_upserted = upsert_bhavcopy(cursor, config["target_schema"], config["target_table"], rows)
                             conn.commit()
                             total_rows += rows_upserted
