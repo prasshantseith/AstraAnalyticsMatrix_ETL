@@ -69,6 +69,17 @@ jobs:
           if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
           xvfb-run -a python src/ingestion/mcx_bhavcopy_ingest.py $ARGS
 
+      - name: Refresh MCX Performance (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUPABASE_POSTGRE_PORT: "5432"
+        run: |
+          python src/orchestration/call_procedure.py \
+            --environment dev --job-name refresh_mcx_performance \
+            --procedure Commodities.usp_RefreshMcxPerformance
+
   ingest-prod:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
@@ -104,3 +115,14 @@ jobs:
           if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
           if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
           xvfb-run -a python src/ingestion/mcx_bhavcopy_ingest.py $ARGS
+
+      - name: Refresh MCX Performance (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUPABASE_POSTGRE_PORT: "5432"
+        run: |
+          python src/orchestration/call_procedure.py \
+            --environment prod --job-name refresh_mcx_performance \
+            --procedure Commodities.usp_RefreshMcxPerformance
