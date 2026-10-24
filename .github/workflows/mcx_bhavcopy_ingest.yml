@@ -1,0 +1,106 @@
+name: MCX Bhavcopy Ingest (API Trigger)
+
+on:
+  schedule:
+    # MCX publishes the day's bhavcopy after market close (evening IST);
+    # 02:00 UTC = 7:30 AM IST the next morning, comfortably after
+    # publication. Standalone schedule (not folded into
+    # daily_incremental_orchestrator.py) since this job alone needs a real
+    # headed browser + Xvfb - every other pipeline there is a plain HTTP
+    # request and shouldn't carry that dependency weight.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Supabase environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: prod
+      start_date:
+        description: 'Start date YYYY-MM-DD (optional, defaults to day after last loaded trade date, or 2003-11-01 if empty - MCX''s own stated bhavcopy history start)'
+        required: false
+        type: string
+      end_date:
+        description: 'End date YYYY-MM-DD (optional, defaults to today)'
+        required: false
+        type: string
+      limit_days:
+        description: 'Only process the first N calendar days in range (for testing, or to chunk a long backfill across multiple dispatches)'
+        required: false
+        type: string
+
+jobs:
+  ingest-dev:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium + OS deps
+        run: python -m playwright install --with-deps chromium
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run MCX bhavcopy ingest (dev)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          LIMIT_DAYS: ${{ inputs.limit_days }}
+        run: |
+          ARGS="--environment dev"
+          if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
+          if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
+          if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
+          xvfb-run -a python src/ingestion/mcx_bhavcopy_ingest.py $ARGS
+
+  ingest-prod:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium + OS deps
+        run: python -m playwright install --with-deps chromium
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run MCX bhavcopy ingest (prod)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          LIMIT_DAYS: ${{ inputs.limit_days }}
+        run: |
+          ARGS="--environment prod"
+          if [ -n "$START_DATE" ]; then ARGS="$ARGS --start-date $START_DATE"; fi
+          if [ -n "$END_DATE" ]; then ARGS="$ARGS --end-date $END_DATE"; fi
+          if [ -n "$LIMIT_DAYS" ]; then ARGS="$ARGS --limit-days $LIMIT_DAYS"; fi
+          xvfb-run -a python src/ingestion/mcx_bhavcopy_ingest.py $ARGS
