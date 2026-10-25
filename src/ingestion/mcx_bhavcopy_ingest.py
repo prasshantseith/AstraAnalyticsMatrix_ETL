@@ -63,6 +63,24 @@ def open_bhavcopy_page(playwright):
     return browser, page
 
 
+# A mid-run reopen (after a failure, or the periodic RELOAD_EVERY_N_DAYS
+# refresh) can itself fail - observed in production as
+# net::ERR_TOO_MANY_REDIRECTS after ~130 consecutive requests in one run,
+# which previously crashed the whole script uncaught. Retries a few times
+# with backoff (MCX may just need a short cooldown); returns (None, None)
+# if it still can't get back in, so the caller can stop gracefully instead
+# of the process dying mid-loop.
+def reopen_bhavcopy_page_with_retry(playwright, attempts=3, backoff_seconds=(15, 45, 90)):
+    for attempt in range(attempts):
+        try:
+            return open_bhavcopy_page(playwright)
+        except Exception as exc:
+            print(f"Reopen attempt {attempt + 1}/{attempts} failed: {exc}")
+            if attempt < attempts - 1:
+                time.sleep(backoff_seconds[attempt])
+    return None, None
+
+
 # -----------------------------
 # 4. One day's bhavcopy - every instrument, every expiry, every strike -
 #    via the page's own date-wise lookup (GetDateWiseBhavCopy), triggered by
@@ -258,13 +276,18 @@ def main():
         failed_days = []
 
         with sync_playwright() as playwright:
-            browser, page = open_bhavcopy_page(playwright)
+            browser, page = reopen_bhavcopy_page_with_retry(playwright)
+            if page is None:
+                raise Exception("Could not open MCX bhavcopy page after retries - site may be blocking this run")
             try:
                 for i, d in enumerate(days, start=1):
                     if i > 1 and (i - 1) % RELOAD_EVERY_N_DAYS == 0:
                         page.close()
                         browser.close()
-                        browser, page = open_bhavcopy_page(playwright)
+                        browser, page = reopen_bhavcopy_page_with_retry(playwright)
+                        if page is None:
+                            print(f"Giving up at {d} - couldn't reopen the page for the periodic refresh.")
+                            break
 
                     try:
                         raw_rows = fetch_bhavcopy(page, d)
@@ -294,12 +317,31 @@ def main():
                             browser.close()
                         except Exception:
                             pass
-                        browser, page = open_bhavcopy_page(playwright)
+                        browser, page = reopen_bhavcopy_page_with_retry(playwright)
+                        if page is None:
+                            # Observed in production: MCX started returning
+                            # net::ERR_TOO_MANY_REDIRECTS after ~130 consecutive
+                            # requests in one run - looks like a bot-detection
+                            # cooldown, not a one-off glitch. Retrying harder
+                            # right now just gets blocked again; stop here and
+                            # let a later, fresh dispatch (different runner,
+                            # cooled-down session) pick up where this left off -
+                            # this script is resumable by design (see start_date
+                            # defaulting to the day after MAX(TradeDate)).
+                            print(
+                                f"Giving up after repeated reopen failures at {d} - "
+                                "likely blocked by MCX; remaining days left for a later run."
+                            )
+                            break
 
                     if args.sleep_seconds:
                         time.sleep(args.sleep_seconds)
             finally:
-                browser.close()
+                # browser can be None here if the last reopen attempt
+                # (periodic refresh or post-failure recovery) itself failed
+                # and the loop broke out before getting a fresh one.
+                if browser is not None:
+                    browser.close()
 
         status = "success" if not failed_days else "success_with_errors"
         error_message = None
