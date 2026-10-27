@@ -8,7 +8,18 @@ on:
     # daily_incremental_orchestrator.py) since this job alone needs a real
     # headed browser + Xvfb - every other pipeline there is a plain HTTP
     # request and shouldn't carry that dependency weight.
+    #
+    # Three redundant firing times, not one - GitHub's own schedule event is
+    # unreliable under load (the same reason daily_incremental_orchestrator.yml
+    # uses an external Render Cron Job instead, see its own comment);
+    # observed here directly: firings consistently landed ~07:45 UTC instead
+    # of the requested 02:17, and one day didn't fire at all. The job itself
+    # is cheap to no-op (just checks for new data), so three scheduled
+    # attempts spread through the day is a low-cost way to raise the odds at
+    # least one actually runs, without needing an external trigger.
     - cron: '17 2 * * *'
+    - cron: '37 8 * * *'
+    - cron: '57 14 * * *'
   workflow_dispatch:
     inputs:
       environment:
