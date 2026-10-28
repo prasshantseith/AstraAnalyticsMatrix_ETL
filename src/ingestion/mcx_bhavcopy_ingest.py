@@ -88,13 +88,42 @@ def reopen_bhavcopy_page_with_retry(playwright, attempts=3, backoff_seconds=(15,
 #    to this same URL (even same-origin) 404s - it only responds to a
 #    request the page's own click handler issues.
 # -----------------------------
+# Route interception, not page.expect_response().json() - the latter reads
+# the body back from Chrome DevTools Protocol's network inspector cache
+# after the fact, which has a size limit observed in production: days with
+# an unusually large contract list (confirmed: one day returned 64,172 rows,
+# ~4-6x a typical day) deterministically fail with "Protocol error
+# (Network.getResponseBody): Request content was evicted from inspector
+# cache" on every retry, even a fresh browser session. route.fetch() instead
+# makes the request through Playwright's own HTTP layer, reading the body
+# directly rather than recalling it from that cache - confirmed to
+# successfully fetch the exact dates that failed the old way.
 def fetch_bhavcopy(page, d):
-    with page.expect_response(
-        lambda r: "GetDateWiseBhavCopy" in r.url, timeout=20000
-    ) as response_info:
+    captured = {}
+
+    def handle_route(route):
+        response = route.fetch()
+        try:
+            captured["payload"] = response.json()
+        except Exception as exc:
+            captured["error"] = exc
+        route.fulfill(response=response)
+
+    page.route("**/GetDateWiseBhavCopy*", handle_route)
+    try:
         page.locator("#bhavCopyDateWise").fill(d.isoformat())
         page.locator("#btnDateWise").click()
-    payload = response_info.value.json()
+        deadline = time.monotonic() + 20
+        while "payload" not in captured and "error" not in captured:
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"Timed out waiting for GetDateWiseBhavCopy response on {d}")
+            page.wait_for_timeout(100)
+    finally:
+        page.unroute("**/GetDateWiseBhavCopy*", handle_route)
+
+    if "error" in captured:
+        raise captured["error"]
+    payload = captured["payload"]
     if not payload.get("IsSuccess") or not payload.get("Data"):
         return None
     return payload["Data"]
