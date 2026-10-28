@@ -15,5 +15,7 @@ create table "Astro"."DimTithi"
     description text COLLATE pg_catalog."default",
     "TithiScore" smallint NOT NULL,
     keyword character varying COLLATE pg_catalog."default",
+    attributes text COLLATE pg_catalog."default",
+    remedy text COLLATE pg_catalog."default",
     CONSTRAINT "DimTithi_pkey" PRIMARY KEY (id)
 );
