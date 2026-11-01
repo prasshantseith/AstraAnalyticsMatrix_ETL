@@ -1,0 +1,13 @@
+-- Prod's Astro.DimYoga already had an id=1 row spelled "Vishkambha" before
+-- the 20261030000000 migration ran - that migration's INSERT ... ON
+-- CONFLICT (id) DO NOTHING correctly left it alone (as a migration should),
+-- but that meant prod silently diverged from dev/local, where id=1 was
+-- genuinely absent and the same migration inserted "Vishkumbha" cleanly.
+--
+-- Confirmed directly against prod (one-off diagnostic query): "Vishkumbha"
+-- is also exactly what Astro.FactPanchang.Yoga_Name stores natively, so
+-- the no-alias-needed assumption in panchang_score.py's later cleanup was
+-- only true for dev/local - on prod it broke every day whose Yoga is
+-- Vishkumbha (confirmed live: Nov 6 2026 Delhi and Nov 7 2026 Auckland,
+-- reported as "no data" for two different users' profiles).
+UPDATE "Astro"."DimYoga" SET yoga_name = 'Vishkumbha' WHERE id = 1 AND yoga_name = 'Vishkambha';
