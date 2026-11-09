@@ -261,10 +261,10 @@ def upsert_stock_data(cursor, target_schema, target_table, rows):
 # -----------------------------
 # 7. Business day range
 # -----------------------------
-def business_days(start, end):
+def business_days(start, end, force_dates=frozenset()):
     d = start
     while d <= end:
-        if d.weekday() < 5:
+        if d.weekday() < 5 or d in force_dates:
             yield d
         d += timedelta(days=1)
 
@@ -295,6 +295,12 @@ def main():
         type=int,
         default=None,
         help="Only process the first N business days in range (for testing)",
+    )
+    parser.add_argument(
+        "--include-dates",
+        default=None,
+        help="Comma-separated YYYY-MM-DD dates (optional) to fetch even if they fall on a "
+             "weekend - for exchange-declared special sessions (e.g. Diwali Muhurat trading)",
     )
     parser.add_argument(
         "--sleep-seconds",
@@ -332,7 +338,11 @@ def main():
             datetime.strptime(args.end_date, "%Y-%m-%d").date() if args.end_date else date.today()
         )
 
-        days = list(business_days(start_date, end_date))
+        force_dates = (
+            {datetime.strptime(s.strip(), "%Y-%m-%d").date() for s in args.include_dates.split(",")}
+            if args.include_dates else frozenset()
+        )
+        days = list(business_days(start_date, end_date, force_dates))
         if args.limit_days is not None:
             days = days[:args.limit_days]
 
