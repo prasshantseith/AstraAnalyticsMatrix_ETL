@@ -22,5 +22,9 @@ create table "Astro"."DimNakshtra"
     highlight_color text COLLATE pg_catalog."default",
     description1 text COLLATE pg_catalog."default",
     "NakshatraScore" smallint NOT NULL,
+    attributes text COLLATE pg_catalog."default",
+    swabhava_new text COLLATE pg_catalog."default",
+    mukha_position_new text COLLATE pg_catalog."default",
+    eyesight_new text COLLATE pg_catalog."default",
     CONSTRAINT "DimNakshtra_pkey" PRIMARY KEY ("NakshatraKey")
 );
