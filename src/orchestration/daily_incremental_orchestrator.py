@@ -297,26 +297,24 @@ def main():
 
     failed = [r for r in results if r["status"] == "failed"]
     run_date = datetime.now(timezone.utc).date().isoformat()
+    # Failure-only: one consolidated summary (covering every step) is sent
+    # only when at least one pipeline failed; a fully successful run sends
+    # nothing (the GitHub Actions run log still has the summary below).
     if failed:
         subject = (
             f"[AstraAnalyticsMatrix ETL] Incremental ingest FAILURES "
             f"({len(failed)}/{len(results)}) - {run_date}"
         )
-    else:
-        subject = (
-            f"[AstraAnalyticsMatrix ETL] Incremental ingest SUCCESS "
-            f"({len(results)}/{len(results)}) - {run_date}"
+        send_alert_email(
+            subject,
+            build_email_body(results, args.environment),
+            ALERT_TO,
+            cc=ALERT_CC,
+            html_body=build_email_html(results, args.environment),
         )
-    # Always sent now (was failure-only) - one consolidated summary per run,
-    # covering every step, success or not.
-    send_alert_email(
-        subject,
-        build_email_body(results, args.environment),
-        ALERT_TO,
-        cc=ALERT_CC,
-        html_body=build_email_html(results, args.environment),
-    )
-    print(f"Sent summary email to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
+        print(f"Sent failure email to {ALERT_TO} (cc {', '.join(ALERT_CC)})", flush=True)
+    else:
+        print("All pipelines succeeded - no email sent.", flush=True)
 
     print("\n=== Final summary ===")
     print(build_summary(results))
